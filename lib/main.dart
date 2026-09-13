@@ -1,3 +1,8 @@
+// PowerField Pro v6.7
+// UTF-8, BOM'suz kaydedin.
+// Gerekli pubspec baÄŸÄ±mlÄ±lÄ±ÄŸÄ±: shared_preferences
+// GitHub Actions'ta Flutter baÄŸÄ±mlÄ±lÄ±klarÄ±nÄ± kurmadan Ã¶nce 'flutter pub get' Ã§alÄ±ÅŸtÄ±rÄ±lmalÄ±dÄ±r.
+// Bu kaynak Ã¶n mÃ¼hendislik/simÃ¼lasyon amaÃ§lÄ±dÄ±r; sertifikalÄ± saha Ã§alÄ±ÅŸmasÄ±nÄ±n yerine geÃ§mez.
 
 import 'dart:convert';
 import 'dart:math';
@@ -30,6 +35,7 @@ class PowerFieldProApp extends StatelessWidget {
 }
 
 enum AppLanguage { tr, en }
+enum AppMode { basic, professional }
 enum PowerDomain { generation, transmission, distribution }
 enum SubArchetype {
   solarGES, windRES, hydroHES, thermalCoal, biomass, naturalGas,
@@ -254,7 +260,7 @@ class ElectricalEngine {
     required double xOhmPerKm,
     double sourceSscMva = 1000,
   }) {
-    final pf = powerFactor.clamp(.2, 1.0);
+    final pf = powerFactor.clamp(.2, 1.0).toDouble();
     if (voltageKv <= 0 || activePowerMw < 0 || lineLengthKm < 0) {
       return {'currentA': 0, 'qMvar': 0, 'sendingKv': 0, 'receivingKv': 0, 'dropPercent': 0, 'lossMw': 0};
     }
@@ -618,13 +624,16 @@ class _MainCockpitState extends State<MainCockpit> with WidgetsBindingObserver {
   int activeProject = 0;
   int activeTab = 0;
   AppLanguage language = AppLanguage.tr;
+  AppMode appMode = AppMode.professional;
   bool _loadingSavedProjects = false;
+  bool _modeDialogShown = false;
 
   String tr(String trText, String enText) => language == AppLanguage.tr ? trText : enText;
 
   ProjectModel get p => projects[activeProject];
-  BreakerModel get breaker => breakers[p.breakerIndex.clamp(0, breakers.length - 1)];
-  SwitchgearModel get switchgear => switchgears[p.switchgearIndex.clamp(0, switchgears.length - 1)];
+  int _safeIndex(int value, int length) => value < 0 ? 0 : (value >= length ? length - 1 : value);
+  BreakerModel get breaker => breakers[_safeIndex(p.breakerIndex, breakers.length)];
+  SwitchgearModel get switchgear => switchgears[_safeIndex(p.switchgearIndex, switchgears.length)];
 
   @override
   void initState() {
@@ -661,7 +670,7 @@ class _MainCockpitState extends State<MainCockpit> with WidgetsBindingObserver {
         cells: _cells('Siemens', 'Siemens SION 3AE / 3AH'),
       ),
     ];
-    _loadSavedProjects();
+    _loadPreferencesAndProjects();
   }
 
   @override
@@ -780,6 +789,58 @@ class _MainCockpitState extends State<MainCockpit> with WidgetsBindingObserver {
     }
   }
 
+  Future<void> _loadPreferencesAndProjects() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final savedMode = prefs.getString('powerfield_app_mode_v67');
+      final selected = prefs.getBool('powerfield_mode_selected_v67') ?? false;
+      if (mounted) {
+        setState(() {
+          if (savedMode == AppMode.basic.name) appMode = AppMode.basic;
+          if (savedMode == AppMode.professional.name) appMode = AppMode.professional;
+        });
+      }
+      await _loadSavedProjects();
+      if (!selected && mounted && !_modeDialogShown) {
+        _modeDialogShown = true;
+        WidgetsBinding.instance.addPostFrameCallback((_) => _showModeChooser());
+      }
+    } catch (_) {
+      await _loadSavedProjects();
+    }
+  }
+
+  Future<void> _setAppMode(AppMode mode) async {
+    setState(() {
+      appMode = mode;
+      activeTab = 0;
+    });
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('powerfield_app_mode_v67', mode.name);
+    await prefs.setBool('powerfield_mode_selected_v67', true);
+  }
+
+  void _showModeChooser() {
+    showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => AlertDialog(
+        title: const Text('POWERFIELD PRO'),
+        content: const Text('Ã‡alÄ±ÅŸma seviyesini seÃ§in. Profesyonel mod ayrÄ±ntÄ±lÄ± mÃ¼hendislik kontrollerini ve analiz sekmelerini aÃ§ar.'),
+        actions: [
+          TextButton(
+            onPressed: () { Navigator.pop(context); _setAppMode(AppMode.basic); },
+            child: const Text('TEMEL'),
+          ),
+          FilledButton(
+            onPressed: () { Navigator.pop(context); _setAppMode(AppMode.professional); },
+            child: const Text('PROFESYONEL'),
+          ),
+        ],
+      ),
+    );
+  }
+
   Future<void> _loadSavedProjects() async {
     if (_loadingSavedProjects) return;
     _loadingSavedProjects = true;
@@ -812,6 +873,14 @@ class _MainCockpitState extends State<MainCockpit> with WidgetsBindingObserver {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(content: Text(tr('Proje JSON verisi panoya kopyalandÄ±.', 'Project JSON copied to clipboard.'))),
     );
+  }
+
+  double? get satResistanceTrendPercent {
+    if (p.testHistory.length < 2) return null;
+    final latest = p.testHistory[0].maxRes;
+    final previous = p.testHistory[1].maxRes;
+    if (previous == 0) return null;
+    return ((latest - previous) / previous) * 100;
   }
 
   void addSatRecord() {
@@ -866,7 +935,7 @@ class _MainCockpitState extends State<MainCockpit> with WidgetsBindingObserver {
     final removed = p.name;
     setState(() {
       projects.removeAt(activeProject);
-      activeProject = activeProject.clamp(0, projects.length - 1);
+      activeProject = _safeIndex(activeProject, projects.length);
     });
     _persistProjects();
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('$removed ${tr('silindi.', 'deleted.')}')));
@@ -875,7 +944,7 @@ class _MainCockpitState extends State<MainCockpit> with WidgetsBindingObserver {
   @override
   Widget build(BuildContext context) => Scaffold(
     appBar: AppBar(
-      title: Text('POWERFIELD PRO v6.6',
+      title: Text('POWERFIELD PRO v6.7',
         style: TextStyle(fontSize: 13, fontWeight: FontWeight.w900, color: switchgear.brandColor)),
       actions: [
         IconButton(onPressed: saveJson, icon: const Icon(Icons.save_alt), tooltip: 'JSON'),
@@ -891,12 +960,14 @@ class _MainCockpitState extends State<MainCockpit> with WidgetsBindingObserver {
       onDestinationSelected: (i) => setState(() => activeTab = i),
       destinations: [
         NavigationDestination(icon: const Icon(Icons.dashboard), label: tr('Kokpit', 'Cockpit')),
-        NavigationDestination(icon: const Icon(Icons.show_chart), label: 'TCC / Role'),
-        NavigationDestination(icon: const Icon(Icons.account_tree), label: tr('YÃ¼k AkÄ±ÅŸÄ±', 'Load Flow')),
-        NavigationDestination(icon: const Icon(Icons.graphic_eq), label: tr('Harmonik', 'Harmonics')),
-        NavigationDestination(icon: const Icon(Icons.fact_check), label: 'SAT'),
-        NavigationDestination(icon: const Icon(Icons.cable), label: tr('Kablo', 'Cable')),
-        NavigationDestination(icon: const Icon(Icons.schema), label: 'SLD'),
+        if (appMode == AppMode.professional) ...[
+          NavigationDestination(icon: const Icon(Icons.show_chart), label: tr('TCC / RÃ¶le', 'TCC / Relay')),
+          NavigationDestination(icon: const Icon(Icons.account_tree), label: tr('YÃ¼k AkÄ±ÅŸÄ±', 'Load Flow')),
+          NavigationDestination(icon: const Icon(Icons.graphic_eq), label: tr('Harmonik', 'Harmonics')),
+          NavigationDestination(icon: const Icon(Icons.fact_check), label: 'SAT'),
+          NavigationDestination(icon: const Icon(Icons.cable), label: tr('Kablo', 'Cable')),
+          NavigationDestination(icon: const Icon(Icons.schema), label: 'SLD'),
+        ],
       ],
     ),
   );
@@ -916,7 +987,7 @@ class _MainCockpitState extends State<MainCockpit> with WidgetsBindingObserver {
     child: Row(children: [
       Expanded(
         child: DropdownButton<int>(
-          value: activeProject.clamp(0, projects.length - 1),
+          value: _safeIndex(activeProject, projects.length),
           isExpanded: true, underline: const SizedBox(),
           items: List.generate(projects.length, (i) => DropdownMenuItem(
             value: i, child: Text(projects[i].name, style: const TextStyle(fontSize: 11)))),
@@ -930,11 +1001,13 @@ class _MainCockpitState extends State<MainCockpit> with WidgetsBindingObserver {
           if (v == 'export') saveJson();
           if (v == 'import') importJsonFromClipboard();
           if (v == 'lang') setState(() => language = language == AppLanguage.tr ? AppLanguage.en : AppLanguage.tr);
+          if (v == 'mode') _showModeChooser();
         },
         itemBuilder: (_) => [
           PopupMenuItem(value: 'export', child: Text(tr('JSON dÄ±ÅŸa aktar / panoya kopyala', 'Export JSON / copy to clipboard'))),
           PopupMenuItem(value: 'import', child: Text(tr('Panodan JSON iÃ§e aktar', 'Import JSON from clipboard'))),
           PopupMenuItem(value: 'lang', child: Text(language == AppLanguage.tr ? 'English' : 'TÃ¼rkÃ§e')),
+          PopupMenuItem(value: 'mode', child: Text(tr('Ã‡alÄ±ÅŸma modu: ${appMode == AppMode.basic ? 'Temel' : 'Profesyonel'}', 'Mode: ${appMode == AppMode.basic ? 'Basic' : 'Professional'}'))),
         ],
       ),
       _domainChip('ÃœRETÄ°M', PowerDomain.generation),
@@ -954,15 +1027,26 @@ class _MainCockpitState extends State<MainCockpit> with WidgetsBindingObserver {
         onPressed: () {
           setState(() {
             p.domain = domain;
-            if (domain == PowerDomain.generation) p.archetype = SubArchetype.solarGES;
+            // Prevent invalid equipment combinations when the engineering domain changes.
+            if (domain == PowerDomain.generation) {
+              p.archetype = SubArchetype.solarGES;
+              p.voltageKv = 34.5;
+              p.switchgearIndex = 1;
+              p.breakerIndex = 1;
+            }
             if (domain == PowerDomain.transmission) {
               p.archetype = SubArchetype.hvSubstation154;
               p.voltageKv = 154;
+              p.switchgearIndex = 3;
+              p.breakerIndex = 3;
             }
             if (domain == PowerDomain.distribution) {
               p.archetype = SubArchetype.osb;
               p.voltageKv = 34.5;
+              p.switchgearIndex = 0;
+              p.breakerIndex = 0;
             }
+            _applyEquipmentToCells();
           });
           _persistProjects();
         },
@@ -994,6 +1078,7 @@ class _MainCockpitState extends State<MainCockpit> with WidgetsBindingObserver {
   }
 
   Widget _tab() {
+    if (appMode == AppMode.basic) return _cockpit();
     switch (activeTab) {
       case 0: return _cockpit();
       case 1: return _tcc();
@@ -1007,20 +1092,25 @@ class _MainCockpitState extends State<MainCockpit> with WidgetsBindingObserver {
   }
 
   Widget _cockpit() => ListView(padding: const EdgeInsets.all(12), children: [
-    _hud('SHORT-CIRCUIT',
+    _card(tr('Ã‡ALIÅžMA MODU', 'WORK MODE'), Row(children: [
+      Expanded(child: ChoiceChip(label: Text(tr('Temel', 'Basic')), selected: appMode == AppMode.basic, onSelected: (_) => _setAppMode(AppMode.basic))),
+      const SizedBox(width: 8),
+      Expanded(child: ChoiceChip(label: Text(tr('Profesyonel', 'Professional')), selected: appMode == AppMode.professional, onSelected: (_) => _setAppMode(AppMode.professional))),
+    ])),
+    _hud(tr('KISA DEVRE', 'SHORT-CIRCUIT'),
       '${ikMax.toStringAsFixed(2)} kA',
       "Ik''min ${(fault['Ik_min'] ?? 0).toStringAsFixed(2)} kA | Ip ${(ipPeak).toStringAsFixed(1)} kA | Îº ${(fault['kappa'] ?? 0).toStringAsFixed(2)}"),
     const SizedBox(height: 10),
-    _card('PROJECT EQUIPMENT', Column(children: [
+    _card(tr('PROJE EKÄ°PMANI', 'PROJECT EQUIPMENT'), Column(children: [
       DropdownButtonFormField<int>(
-        value: p.switchgearIndex.clamp(0, switchgears.length-1),
+        value: _safeIndex(p.switchgearIndex, switchgears.length),
         isExpanded: true,
         items: List.generate(switchgears.length, (i) => DropdownMenuItem(
           value: i, child: Text(switchgears[i].name, style: const TextStyle(fontSize: 11)))),
         onChanged: (v) { if (v == null) return; setState(() { p.switchgearIndex = v; _applyEquipmentToCells(); }); _persistProjects(); },
       ),
       DropdownButtonFormField<int>(
-        value: p.breakerIndex.clamp(0, breakers.length-1),
+        value: _safeIndex(p.breakerIndex, breakers.length),
         isExpanded: true,
         items: List.generate(breakers.length, (i) => DropdownMenuItem(
           value: i, child: Text('${breakers[i].name} | Icu ${breakers[i].ratedBreakingIcuKa} kA',
@@ -1028,7 +1118,7 @@ class _MainCockpitState extends State<MainCockpit> with WidgetsBindingObserver {
         onChanged: (v) { if (v == null) return; setState(() { p.breakerIndex = v; _applyEquipmentToCells(); }); _persistProjects(); },
       ),
     ])),
-    _card('PROJE ARKETÄ°PÄ°', DropdownButtonFormField<SubArchetype>(
+    _card(tr('PROJE ARKETÄ°PÄ°', 'PROJECT ARCHETYPE'), DropdownButtonFormField<SubArchetype>(
       value: p.archetype,
       isExpanded: true,
       items: SubArchetype.values.map((a) => DropdownMenuItem(value: a, child: Text(_archetypeName(a), style: const TextStyle(fontSize: 11)))).toList(),
@@ -1070,19 +1160,19 @@ class _MainCockpitState extends State<MainCockpit> with WidgetsBindingObserver {
   Widget _buildDynamicArchetypePanel() {
     switch (p.archetype) {
       case SubArchetype.hospital:
-        return _card('HASTANE â€¢ RISO', Column(children: [
+        return _card(tr('HASTANE â€¢ RISO', 'HOSPITAL â€¢ RISO'), Column(children: [
           _slider('Ä°zolasyon direnci kÎ©', p.hospitalRisoKOhm, 10, 500, (v) => p.hospitalRisoKOhm = v),
           _row('Riso Ã¶n kontrol', '${p.hospitalRisoKOhm.toStringAsFixed(1)} kÎ©', p.hospitalRisoKOhm >= 100),
           const Text('Ã–n kontrol eÅŸiÄŸi: 100 kÎ©. TÄ±bbi IT sistemleri iÃ§in proje/standart doÄŸrulamasÄ± ayrÄ±ca yapÄ±lmalÄ±dÄ±r.', style: TextStyle(fontSize: 9, color: Colors.grey)),
         ]));
       case SubArchetype.airport:
-        return _card('HAVALÄ°MANI â€¢ CCR', Column(children: [
+        return _card(tr('HAVALÄ°MANI â€¢ CCR', 'AIRPORT â€¢ CCR'), Column(children: [
           _slider('CCR akÄ±mÄ± A', p.airportCcrAmps, 1, 20, (v) => p.airportCcrAmps = v),
           _row('CCR nominal Ã¶n kontrol', '${p.airportCcrAmps.toStringAsFixed(2)} A', p.airportCcrAmps > 0),
           const Text('CCR/AGL uyumluluÄŸu Ã¼retici ve havacÄ±lÄ±k standartlarÄ±na gÃ¶re ayrÄ±ca doÄŸrulanmalÄ±dÄ±r.', style: TextStyle(fontSize: 9, color: Colors.grey)),
         ]));
       case SubArchetype.commercialMall:
-        return _card('AVM â€¢ YANGIN POMPASI', Column(children: [
+        return _card(tr('AVM â€¢ YANGIN POMPASI', 'MALL â€¢ FIRE PUMP'), Column(children: [
           SwitchListTile(dense: true, title: const Text('51 bypass', style: TextStyle(fontSize: 11)), value: p.down50Enabled, onChanged: (v) => setState(() => p.down50Enabled = v)),
           _row('YangÄ±n pompasÄ± 51 durumu', p.down50Enabled ? 'AKTÄ°F' : 'BYPASS', !p.down50Enabled),
           const Text('YangÄ±n pompasÄ± koruma mantÄ±ÄŸÄ± NFPA 20/proje felsefesi ile ayrÄ±ca doÄŸrulanmalÄ±dÄ±r.', style: TextStyle(fontSize: 9, color: Colors.grey)),
@@ -1108,7 +1198,7 @@ class _MainCockpitState extends State<MainCockpit> with WidgetsBindingObserver {
       case SubArchetype.waterTreatment:
         final dip = ElectricalEngine.calcMotorStartVoltageDipPercent(motorKw: p.motorKw, sscMva: p.gridSscMva);
         final resonance = ElectricalEngine.calcResonanceOrder(p.gridSscMva, p.compensationKvar);
-        return _card('SANAYÄ° â€¢ MOTOR / REZONANS', Column(children: [
+        return _card(tr('SANAYÄ° â€¢ MOTOR / REZONANS', 'INDUSTRY â€¢ MOTOR / RESONANCE'), Column(children: [
           _slider('Motor kW', p.motorKw, 10, 5000, (v) => p.motorKw = v),
           _slider('Kompanzasyon kvar', p.compensationKvar, 0, 5000, (v) => p.compensationKvar = v),
           _row('Motor kalkÄ±ÅŸ gerilim Ã§Ã¶kmesi', '${dip.toStringAsFixed(1)} %', dip <= 10),
@@ -1120,7 +1210,7 @@ class _MainCockpitState extends State<MainCockpit> with WidgetsBindingObserver {
       case SubArchetype.standardSubstation:
         final zones = ElectricalEngine.calcDistanceZones(lineLengthKm: p.lineLengthKm, rOhmPerKm: p.lineROhmPerKm, xOhmPerKm: p.lineXOhmPerKm);
         final sf6 = ElectricalEngine.calcCompensatedSf6Pressure(measuredPressureMpa: p.sf6MeasuredMpa, ambientTempC: p.ambientTempC);
-        return _card('TM â€¢ HAT / SF6', Column(children: [
+        return _card(tr('TM â€¢ HAT / SF6', 'SUBSTATION â€¢ LINE / SF6'), Column(children: [
           _slider('Hat uzunluÄŸu km', p.lineLengthKm, 1, 300, (v) => p.lineLengthKm = v),
           _slider('R Î©/km', p.lineROhmPerKm, .001, 1, (v) => p.lineROhmPerKm = v),
           _slider('X Î©/km', p.lineXOhmPerKm, .001, 2, (v) => p.lineXOhmPerKm = v),
@@ -1135,7 +1225,7 @@ class _MainCockpitState extends State<MainCockpit> with WidgetsBindingObserver {
   Widget _loadFlowTab() => ListView(padding: const EdgeInsets.all(12), children: [
     _hud('LOAD FLOW', '${loadFlow['receivingKv']!.toStringAsFixed(2)} kV',
       '${p.loadFlowMw.toStringAsFixed(2)} MW | PF ${p.loadFlowPf.toStringAsFixed(2)} | Î”U ${loadFlow['dropPercent']!.toStringAsFixed(2)}%'),
-    _card('GÃœÃ‡ AKIÅžI / POWER FLOW', Column(children: [
+    _card(tr('GÃœÃ‡ AKIÅžI / GÃœÃ‡ AKIÅžI', 'POWER FLOW'), Column(children: [
       _slider('Aktif gÃ¼Ã§ MW', p.loadFlowMw, 0, 500, (v) => p.loadFlowMw = v),
       _slider('Power factor', p.loadFlowPf, .5, 1, (v) => p.loadFlowPf = v),
       _row('Hat akÄ±mÄ±', '${loadFlow['currentA']!.toStringAsFixed(1)} A', loadFlow['currentA']!.isFinite),
@@ -1150,7 +1240,7 @@ class _MainCockpitState extends State<MainCockpit> with WidgetsBindingObserver {
   Widget _harmonicTab() => ListView(padding: const EdgeInsets.all(12), children: [
     _hud('HARMONIC STUDY', 'THDi ${harmonics['thdiPercent']!.toStringAsFixed(2)} %',
       'THDv ${harmonics['thdvPercent']!.toStringAsFixed(2)} % | I1 ${p.loadCurrentA.toStringAsFixed(0)} A'),
-    _card('HARMONIC CURRENT SPECTRUM', Column(children: [
+    _card(tr('HARMONÄ°K AKIM SPEKTRUMU', 'HARMONIC CURRENT SPECTRUM'), Column(children: [
       _slider('Fundamental I1 A', p.loadCurrentA, 1, 2000, (v) => p.loadCurrentA = v),
       _slider('H3 % I1', p.harmonicH3Pct, 0, 30, (v) => p.harmonicH3Pct = v),
       _slider('H5 % I1', p.harmonicH5Pct, 0, 50, (v) => p.harmonicH5Pct = v),
@@ -1191,7 +1281,7 @@ class _MainCockpitState extends State<MainCockpit> with WidgetsBindingObserver {
       _slider('Downstream 51 Secondary A', p.downSettingSecA, .5, 10, (v) => p.downSettingSecA = v),
       _slider('Downstream TMS', p.downTms, .05, 1, (v) => p.downTms = v),
     ])),
-    _card('RELAY TYPE / KORUMA FONKSÄ°YONLARI', Column(children: [
+    _card(tr('RÃ–LE TÄ°PÄ° / KORUMA FONKSÄ°YONLARI', 'RELAY TYPE / PROTECTION FUNCTIONS'), Column(children: [
       Wrap(spacing: 5, runSpacing: 4, children: RelayType.values.map((r) => FilterChip(
         label: Text(_relayName(r), style: const TextStyle(fontSize: 9)),
         selected: p.relayTypes.contains(r),
@@ -1204,7 +1294,7 @@ class _MainCockpitState extends State<MainCockpit> with WidgetsBindingObserver {
         }),
       )).toList()),
     ])),
-    _card('ANSI 50', Column(children: [
+    _card(tr('ANSI 50', 'ANSI 50'), Column(children: [
       SwitchListTile(
         dense: true, title: const Text('Downstream 50 Active', style: TextStyle(fontSize: 11)),
         value: p.down50Enabled, onChanged: (v) => setState(() => p.down50Enabled = v)),
@@ -1213,7 +1303,7 @@ class _MainCockpitState extends State<MainCockpit> with WidgetsBindingObserver {
       Text('Upstream 50: ${p.up50Enabled ? p.up50PickupA.toStringAsFixed(0) : "OFF"} A',
         style: const TextStyle(fontSize: 10, color: Colors.grey)),
     ])),
-    _card('COORDINATION RESULT', Column(children: [
+    _card(tr('KOORDÄ°NASYON SONUCU', 'COORDINATION RESULT'), Column(children: [
       _row('Minimum 51 margin', '${(selectivityMarginSec*1000).toStringAsFixed(0)} ms', selectivityMarginSec >= .30),
       _row('50 coordination', instantaneousCoordination ? 'OK' : 'CHECK', instantaneousCoordination),
     ])),
@@ -1235,8 +1325,10 @@ class _MainCockpitState extends State<MainCockpit> with WidgetsBindingObserver {
         onPressed: addSatRecord,
         icon: const Icon(Icons.save),
         label: const Text('SAT KaydÄ±nÄ± Proje GeÃ§miÅŸine Ekle')),
+      if (satResistanceTrendPercent != null)
+        _row('Kontak direnci trendi', '${satResistanceTrendPercent! >= 0 ? '+' : ''}${satResistanceTrendPercent!.toStringAsFixed(1)} %', satResistanceTrendPercent! <= 0),
       if (p.testHistory.isNotEmpty)
-        _card('SAT HISTORY', Column(children: p.testHistory.take(6).map((r) =>
+        _card(tr('SAT GEÃ‡MÄ°ÅžÄ°', 'SAT HISTORY'), Column(children: p.testHistory.take(6).map((r) =>
           ListTile(dense: true, title: Text(r.timestamp, style: const TextStyle(fontSize: 10)),
             subtitle: Text('${r.breaker} | ${r.maxRes.toStringAsFixed(1)} ÂµÎ© | Î”t ${r.syncDelta.toStringAsFixed(1)} ms',
               style: const TextStyle(fontSize: 9)),
@@ -1248,7 +1340,7 @@ class _MainCockpitState extends State<MainCockpit> with WidgetsBindingObserver {
   Widget _cable() => ListView(padding: const EdgeInsets.all(12), children: [
     _hud('CABLE PRE-CHECK', '${p.cableSectionMm2.toInt()} mmÂ² ${p.isCopper ? "Cu" : "Al"}',
       'Iz ${(cable["deratedIz"] as double).toStringAsFixed(0)} A | Î”U ${(cable["dropPercent"] as double).toStringAsFixed(2)}%'),
-    _card('CABLE PARAMETERS', Column(children: [
+    _card(tr('KABLO PARAMETRELERÄ°', 'CABLE PARAMETERS'), Column(children: [
       _slider('Section mmÂ²', p.cableSectionMm2, 35, 300, (v) => p.cableSectionMm2 = v),
       _slider('Length m', p.cableLengthM, 10, 2000, (v) => p.cableLengthM = v),
       _slider('Load A', p.loadCurrentA, 10, 800, (v) => p.loadCurrentA = v),
@@ -1292,7 +1384,7 @@ class _MainCockpitState extends State<MainCockpit> with WidgetsBindingObserver {
               Text(title, style: const TextStyle(fontSize: 10)),
               Text(value.toStringAsFixed(1), style: const TextStyle(fontWeight: FontWeight.bold, color: Color(0xFFFFB300))),
             ]),
-            Slider(value: value.clamp(minV, maxV), min: minV, max: maxV, onChanged: (v) {
+            Slider(value: value.clamp(minV, maxV).toDouble(), min: minV, max: maxV, onChanged: (v) {
               setState(() => onChanged(v));
             }),
           ]),
