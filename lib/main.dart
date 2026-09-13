@@ -1,188 +1,172 @@
+import 'dart:convert';
+import 'dart:io';
 import 'dart:math';
 import 'package:flutter/material.dart';
 
 void main() {
-  runApp(const PowerEngineMasterApp());
+  runApp(const PowerFieldProApp());
 }
 
-class PowerEngineMasterApp extends StatelessWidget {
-  const PowerEngineMasterApp({super.key});
+class PowerFieldProApp extends StatelessWidget {
+  const PowerFieldProApp({super.key});
 
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'PowerField Engineering Suite',
+      title: 'PowerField Pro',
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
         brightness: Brightness.dark,
         scaffoldBackgroundColor: const Color(0xFF0B0E14),
         cardColor: const Color(0xFF151921),
         colorScheme: const ColorScheme.dark(
-          primary: Color(0xFFFFB300), // Industrial Amber
-          secondary: Color(0xFF00E676), // Safety Green
-          error: Color(0xFFFF3D00), // Alert Red
+          primary: Color(0xFFFFB300),
+          secondary: Color(0xFF00E676),
+          error: Color(0xFFFF3D00),
           surface: Color(0xFF151921),
         ),
         useMaterial3: true,
       ),
-      home: const MainEngineDashboard(),
+      home: const MainCockpit(),
     );
   }
 }
 
 enum AppLanguage { tr, en, de }
+enum CellType { incomer, feeder, coupler, vtMetering, transformer }
 
-class MainEngineDashboard extends StatefulWidget {
-  const MainEngineDashboard({super.key});
+class SwitchgearCell {
+  String id;
+  String name;
+  CellType type;
+  bool cbClosed;
+  bool earthClosed;
+  String ctRatio;
+  String ctClass;
+  String vtRatio;
 
-  @override
-  State<MainEngineDashboard> createState() => _MainEngineDashboardState();
+  SwitchgearCell({
+    required this.id,
+    required this.name,
+    required this.type,
+    this.cbClosed = false,
+    this.earthClosed = false,
+    this.ctRatio = "400-800/5A",
+    this.ctClass = "5P20 15VA + 0.2S 10VA",
+    this.vtRatio = "34.5/√3 kV / 100/√3 V",
+  });
 }
 
-class _MainEngineDashboardState extends State<MainEngineDashboard> {
-  int _activeTabIndex = 0;
+class MainCockpit extends StatefulWidget {
+  const MainCockpit({super.key});
+
+  @override
+  State<MainCockpit> createState() => _MainCockpitState();
+}
+
+class _MainCockpitState extends State<MainCockpit> {
+  int _activeTab = 0;
   AppLanguage _lang = AppLanguage.tr;
 
-  // --- 1. ŞEBEKE & TRAFO PARAMETRELERİ (IEC 60076 / IEC 60909) ---
-  double _systemVoltageKv = 34.5; // kV (34.5, 31.5, 15, 10.5, 6.3, 0.4)
-  double _trafoMva = 1.6; // MVA (1600 kVA)
-  double _ukPercent = 6.0; // %uk
-  double _cFactor = 1.10; // IEC 60909 Gerilim Faktörü
+  // 1. Şebeke & Trafo
+  double _voltageKv = 34.5;
+  double _trafoMva = 1.6;
+  double _ukPercent = 6.0;
 
-  // --- 2. ÇİFT KADEMELİ RÖLE SELEKTİVİTESİ (IEC 60255 / TEDAŞ) ---
-  // Upstream (Giriş Rölesi)
+  // 2. Çift Kademeli Röle
   double _upIs = 600.0;
   double _upTms = 0.25;
   String _upCurve = "SI";
-  // Downstream (Fider Rölesi)
   double _downIs = 250.0;
   double _downTms = 0.15;
   String _downCurve = "SI";
 
-  // --- 3. ARK PARLAMASI ANALİZİ (IEEE 1584 / NFPA 70E) ---
-  double _workingDistanceMm = 610.0; // Tipik OG hücresi çalışma mesafesi (mm)
-  double _breakerMechTimeMs = 50.0; // Kesici mekanik açma süresi (ms)
-
-  // --- 4. KABLO, ÇEVRESEL DÜZELTME & ADYABATİK TAHKİK (IEC 60364 / DIN VDE) ---
-  double _cableLength = 180.0;
-  double _loadCurrent = 95.0;
-  double _selectedSection = 50.0; // mm²
+  // 3. Kablo & Termik
+  double _cableLength = 150.0;
+  double _loadCurrent = 85.0;
+  double _cableSection = 50.0;
   bool _isCopper = true;
-  double _ambientTemp = 40.0; // °C
-  int _groupedCircuits = 3; // Yan yana kablo sayısı
 
-  // --- 5. TEK HAT ŞEMASI (SLD) VE KİLİTLEME DURUMLARI ---
-  bool _cb1Closed = true; // TR-1 Giriş Kesicisi
-  bool _cb2Closed = true; // TR-2 Giriş Kesicisi
-  bool _cbCouplerClosed = false; // Kuplaj Kesicisi
-  bool _earthSwitchClosed = false; // Fider Topraklama Ayırıcısı
-  bool _atsGenActive = false; // Jeneratör Şalteri
+  // 4. Çevre, Rakım & İklim (IEC 62271-1 / IEC 60076)
+  double _ambientTemp = 32.0;
+  double _altitudeMeters = 850.0; // Rakım (m)
+  double _relativeHumidity = 65.0; // % Bağıl Nem
+  String _locationName = "İzmir, TR";
+  bool _isLoadingWeather = false;
 
-  // Çeviri Tablosu
-  String t(String key) {
-    const dict = {
-      'nav_grid': {'tr': 'Trafo & Şebeke', 'en': 'Grid & Trafo', 'de': 'Netz & Trafo'},
-      'nav_relay': {'tr': 'Röle Selektivite', 'en': 'Selectivity', 'de': 'Staffelung'},
-      'nav_arc': {'tr': 'IEEE 1584 Ark', 'en': 'Arc Flash', 'de': 'Störlichtbogen'},
-      'nav_cable': {'tr': 'Kablo & Termik', 'en': 'Cable & Thermal', 'de': 'Kabelauslegung'},
-      'nav_sld': {'tr': 'Tek Hat (SLD)', 'en': 'SLD Schematic', 'de': 'Einliniendiagramm'},
-      'ik_title': {'tr': '3 FAZ BAŞLANGIÇ KISA DEVRE AKIMI', 'en': '3-PHASE SHORT CIRCUIT CURRENT', 'de': '3-POL. KURZSCHLUSSSTROM'},
-      'calc_engine': {'tr': 'Hesaplama Motoru (IEC / IEEE)', 'en': 'Calculation Engine', 'de': 'Berechnungsmotor'},
-      'interlock_warn': {'tr': '2/3 KİLİTLEME İHLALİ: TR1, TR2 ve Kuplaj aynı anda kapalı olamaz!', 'en': '2/3 INTERLOCK VIOLATION: Paralleling prohibited!', 'de': '2/3 VERRIEGELUNG: Parallelschaltung verboten!'},
-      'earth_warn': {'tr': 'GÜVENLİK İHLALİ: Kesici kapalıyken topraklama kapatılamaz!', 'en': 'SAFETY INTERLOCK: Breaker must be OPEN before Earthing!', 'de': 'SICHERHEITSVERRIEGELUNG: Vor Erdung Leistungsschalter ÖFFNEN!'},
+  // 5. Dinamik Hücre Dizilimi (Switchgear Line-up)
+  final List<SwitchgearCell> _cells = [
+    SwitchgearCell(id: "C1", name: "H01 TR-1 Giriş", type: CellType.incomer, cbClosed: true, ctRatio: "400/5A"),
+    SwitchgearCell(id: "C2", name: "H02 Gerilim Ölçü", type: CellType.vtMetering, cbClosed: true),
+    SwitchgearCell(id: "C3", name: "H03 Kuplaj", type: CellType.coupler, cbClosed: false),
+    SwitchgearCell(id: "C4", name: "H04 Fider 1", type: CellType.feeder, cbClosed: true, ctRatio: "200/5A"),
+    SwitchgearCell(id: "C5", name: "H05 TR-2 Giriş", type: CellType.incomer, cbClosed: true, ctRatio: "400/5A"),
+  ];
+
+  String t(String k) {
+    const d = {
+      'net': {'tr': 'Şebeke', 'en': 'Grid', 'de': 'Netz'},
+      'relay': {'tr': 'Selektivite', 'en': 'Selectivity', 'de': 'Staffelung'},
+      'env': {'tr': 'Çevre & Rakım', 'en': 'Climate & Alt.', 'de': 'Klima & Höhe'},
+      'cable': {'tr': 'Kablo & Ark', 'en': 'Cable & Arc', 'de': 'Kabel & Lichtb.'},
+      'sld': {'tr': 'Şalt & SLD', 'en': 'Switchgear', 'de': 'Schaltanlage'},
     };
-    return dict[key]?[_lang.name] ?? key;
+    return d[k]?[_lang.name] ?? k;
   }
 
-  // --- HESAPLAMA MOTORU FORMÜLLERİ ---
-
-  // IEC 60909 Trafo Empedansı ve Kısa Devre Akımı
-  double get _shortCircuitCurrentKa {
-    final zt = (_ukPercent / 100.0) * (pow(_systemVoltageKv, 2) / _trafoMva);
+  // --- HESAPLAMA MOTORU ---
+  double get _ikKa {
+    final zt = (_ukPercent / 100.0) * (pow(_voltageKv, 2) / _trafoMva);
     if (zt <= 0) return 0.0;
-    return (_cFactor * _systemVoltageKv) / (sqrt(3) * zt);
+    return (1.10 * _voltageKv) / (sqrt(3) * zt);
   }
 
-  double get _peakShortCircuitKa {
-    // ip = kappa * sqrt(2) * Ik'' (Tipik kappa ~ 1.8)
-    return 1.8 * sqrt(2) * _shortCircuitCurrentKa;
+  // IEC 62271-1 Rakım Düzeltme Katsayısı Ka (1000m üzeri yalıtım artırımı)
+  double get _altitudeDeratingKa {
+    if (_altitudeMeters <= 1000) return 1.0;
+    return exp((_altitudeMeters - 1000) / 8150.0);
   }
 
-  // IEC 60255 Açma Süresi
-  double _calcTripTime(double faultA, double iSetting, double tmsVal, String curve) {
-    if (faultA <= iSetting) return double.infinity;
-    double k = 0.14, alpha = 0.02;
-    if (curve == "VI") { k = 13.5; alpha = 1.0; }
-    else if (curve == "EI") { k = 80.0; alpha = 2.0; }
-    else if (curve == "LTI") { k = 120.0; alpha = 1.0; }
-    final m = faultA / iSetting;
-    final denom = pow(m, alpha) - 1.0;
-    if (denom <= 0) return double.infinity;
-    return tmsVal * (k / denom);
+  // Trafo Rakım Güç Düşümü (IEC 60076: 1000m üzeri her 100m için %0.4 kayıp)
+  double get _trafoAltitudeCapacityMva {
+    if (_altitudeMeters <= 1000) return _trafoMva;
+    final reductionFactor = 1.0 - (((_altitudeMeters - 1000) / 100.0) * 0.004);
+    return _trafoMva * max(reductionFactor, 0.70);
   }
 
-  // Downstream Toplam Arıza Temizleme Süresi (saniye)
-  double get _totalClearingTimeSec {
-    final faultA = _shortCircuitCurrentKa * 1000.0;
-    final tRelay = _calcTripTime(faultA, _downIs, _downTms, _downCurve);
-    if (tRelay.isInfinite) return 0.50; // Varsayılan yedek
-    return tRelay + (_breakerMechTimeMs / 1000.0);
-  }
+  // Canlı Hava Durumu & Rakım Çekme (IP & Open-Meteo)
+  Future<void> _fetchLiveEnvironment() async {
+    setState(() => _isLoadingWeather = true);
+    try {
+      final client = HttpClient()..connectionTimeout = const Duration(seconds: 4);
+      final ipReq = await client.getUrl(Uri.parse('http://ip-api.com/json/'));
+      final ipRes = await ipReq.close();
+      if (ipRes.statusCode == 200) {
+        final ipData = jsonDecode(await ipRes.transform(utf8.decoder).join());
+        final lat = ipData['lat'];
+        final lon = ipData['lon'];
+        final city = ipData['city'] ?? 'Saha';
 
-  // IEEE 1584 Ark Parlaması Olay Enerjisi (cal/cm²)
-  double get _incidentEnergyCalCm2 {
-    final ik = _shortCircuitCurrentKa;
-    final t = _totalClearingTimeSec;
-    final d = _workingDistanceMm;
-    if (ik <= 0 || t <= 0) return 0.0;
-    // IEEE 1584 Amperik Basitleştirilmiş Yaklaşım Modeli
-    final energy = 4.184 * (1000.0 / d) * ik * t * 1.5;
-    return min(energy, 85.0);
-  }
-
-  // NFPA 70E KKD / PPE Seviyesi
-  String get _ppeCategory {
-    final e = _incidentEnergyCalCm2;
-    if (e < 1.2) return "Seviye 0 (Standart İş Kıyafeti)";
-    if (e <= 4.0) return "Kategori 1 (4 cal/cm² Yangına Dirençli)";
-    if (e <= 8.0) return "Kategori 2 (8 cal/cm² Ark Başlığı)";
-    if (e <= 25.0) return "Kategori 3 (25 cal/cm² Tam Takım Zırh)";
-    if (e <= 40.0) return "Kategori 4 (40 cal/cm² Bomba İmha Tipi Ark Giysisi)";
-    return "TEHLİKELİ! ÇALIŞILAMAZ (> 40 cal/cm²)";
-  }
-
-  // Çevresel Katsayılar (IEC 60364 / DIN VDE 0298-4)
-  double get _tempCorrectionFactor {
-    // 30°C referans XLPE
-    if (_ambientTemp <= 30) return 1.0;
-    if (_ambientTemp <= 35) return 0.96;
-    if (_ambientTemp <= 40) return 0.91;
-    if (_ambientTemp <= 45) return 0.87;
-    return 0.82;
-  }
-
-  double get _groupCorrectionFactor {
-    if (_groupedCircuits == 1) return 1.0;
-    if (_groupedCircuits == 2) return 0.80;
-    if (_groupedCircuits == 3) return 0.70;
-    return 0.65;
-  }
-
-  // Adyabatik Kısa Devre Asgari Kablo Kesiti Smin = (Ik * sqrt(t)) / k
-  double get _minAdiabaticSectionMm2 {
-    final ikAmps = _shortCircuitCurrentKa * 1000.0;
-    final t = min(_totalClearingTimeSec, 1.0);
-    final k = _isCopper ? 143.0 : 94.0; // Cu/XLPE = 143, Al/XLPE = 94
-    return (ikAmps * sqrt(t)) / k;
-  }
-
-  // Gerilim Düşümü %
-  double get _voltageDropPercent {
-    final rho = _isCopper ? 0.0175 : 0.028;
-    final r = (rho * _cableLength) / _selectedSection;
-    final vNominal = _systemVoltageKv * 1000.0;
-    final deltaU = sqrt(3) * _loadCurrent * r * 0.85;
-    return (deltaU / vNominal) * 100.0;
+        final wUri = Uri.parse('https://api.open-meteo.com/v1/forecast?latitude=$lat&longitude=$lon&current=temperature_2m,relative_humidity_2m&elevation=nan');
+        final wReq = await client.getUrl(wUri);
+        final wRes = await wReq.close();
+        if (wRes.statusCode == 200) {
+          final wData = jsonDecode(await wRes.transform(utf8.decoder).join());
+          setState(() {
+            _locationName = "$city (${ipData['countryCode']})";
+            _ambientTemp = (wData['current']?['temperature_2m'] as num?)?.toDouble() ?? _ambientTemp;
+            _relativeHumidity = (wData['current']?['relative_humidity_2m'] as num?)?.toDouble() ?? _relativeHumidity;
+            _altitudeMeters = (wData['elevation'] as num?)?.toDouble() ?? _altitudeMeters;
+          });
+        }
+      }
+    } catch (_) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Konum/Hava durumu alınamadı, manuel değerler geçerli.")),
+      );
+    } finally {
+      setState(() => _isLoadingWeather = false);
+    }
   }
 
   @override
@@ -190,25 +174,18 @@ class _MainEngineDashboardState extends State<MainEngineDashboard> {
     return Scaffold(
       appBar: AppBar(
         backgroundColor: const Color(0xFF151921),
-        elevation: 0,
-        title: Row(
+        title: const Row(
           children: [
-            const Icon(Icons.bolt, color: Color(0xFFFFB300), size: 26),
-            const SizedBox(width: 8),
-            const Text(
-              'POWERFIELD PRO',
-              style: TextStyle(fontWeight: FontWeight.w900, letterSpacing: 1.5, fontSize: 17),
-            ),
+            Icon(Icons.bolt, color: Color(0xFFFFB300), size: 24),
+            SizedBox(width: 8),
+            Text('POWERFIELD PRO', style: TextStyle(fontWeight: FontWeight.w900, letterSpacing: 1.2, fontSize: 17)),
           ],
         ),
         actions: [
           Container(
-            margin: const EdgeInsets.symmetric(vertical: 10, horizontal: 10),
-            padding: const EdgeInsets.symmetric(horizontal: 8),
-            decoration: BoxDecoration(
-              border: Border.all(color: const Color(0xFF30363D)),
-              borderRadius: BorderRadius.circular(8),
-            ),
+            margin: const EdgeInsets.symmetric(vertical: 10, horizontal: 8),
+            padding: const EdgeInsets.symmetric(horizontal: 6),
+            decoration: BoxDecoration(border: Border.all(color: const Color(0xFF30363D)), borderRadius: BorderRadius.circular(8)),
             child: DropdownButton<AppLanguage>(
               value: _lang,
               underline: const SizedBox(),
@@ -223,132 +200,71 @@ class _MainEngineDashboardState extends State<MainEngineDashboard> {
           )
         ],
       ),
-      body: _buildCurrentModule(),
-      bottomNavigationBar: Container(
-        decoration: const BoxDecoration(
-          border: Border(top: BorderSide(color: Color(0xFF30363D), width: 1)),
-        ),
-        child: NavigationBar(
-          backgroundColor: const Color(0xFF151921),
-          indicatorColor: const Color(0xFFFFB300).withValues(alpha: 0.25),
-          selectedIndex: _activeTabIndex,
-          onDestinationSelected: (i) => setState(() => _activeTabIndex = i),
-          destinations: [
-            NavigationDestination(icon: const Icon(Icons.power_input), label: t('nav_grid')),
-            NavigationDestination(icon: const Icon(Icons.tune), label: t('nav_relay')),
-            NavigationDestination(icon: const Icon(Icons.warning_amber), label: t('nav_arc')),
-            NavigationDestination(icon: const Icon(Icons.cable), label: t('nav_cable')),
-            NavigationDestination(icon: const Icon(Icons.schema), label: t('nav_sld')),
-          ],
-        ),
+      body: _buildCurrentTab(),
+      bottomNavigationBar: NavigationBar(
+        backgroundColor: const Color(0xFF151921),
+        indicatorColor: const Color(0xFFFFB300).withValues(alpha: 0.25),
+        selectedIndex: _activeTab,
+        onDestinationSelected: (i) => setState(() => _activeTab = i),
+        destinations: [
+          NavigationDestination(icon: const Icon(Icons.power_input), label: t('net')),
+          NavigationDestination(icon: const Icon(Icons.tune), label: t('relay')),
+          NavigationDestination(icon: const Icon(Icons.wb_sunny_outlined), label: t('env')),
+          NavigationDestination(icon: const Icon(Icons.cable), label: t('cable')),
+          NavigationDestination(icon: const Icon(Icons.schema), label: t('sld')),
+        ],
       ),
     );
   }
 
-  Widget _buildCurrentModule() {
-    switch (_activeTabIndex) {
-      case 0:
-        return _buildGridTrafoView();
-      case 1:
-        return _buildRelayCoordinationView();
-      case 2:
-        return _buildArcFlashView();
-      case 3:
-        return _buildCableThermalView();
-      case 4:
-        return _buildSingleLineDiagramView();
-      default:
-        return const SizedBox();
+  Widget _buildCurrentTab() {
+    switch (_activeTab) {
+      case 0: return _buildGridTab();
+      case 1: return _buildRelayTab();
+      case 2: return _buildEnvironmentTab();
+      case 3: return _buildCableArcTab();
+      case 4: return _buildSwitchgearSldTab();
+      default: return const SizedBox();
     }
   }
 
-  // ==========================================
-  // MODÜL 1: ŞEBEKE & TRAFO ANALİZİ
-  // ==========================================
-  Widget _buildGridTrafoView() {
-    final ikKa = _shortCircuitCurrentKa;
-    final ipKa = _peakShortCircuitKa;
-
+  // --- SEKME 0: ŞEBEKE & TRAFO ---
+  Widget _buildGridTab() {
     return ListView(
       padding: const EdgeInsets.all(16),
       children: [
-        _buildHudCard(
-          title: t('ik_title'),
-          value: '${ikKa.toStringAsFixed(2)} kA',
-          subValue: 'Tepe Darbe Akımı (ip): ${ipKa.toStringAsFixed(2)} kA',
-          accentColor: const Color(0xFFFFB300),
-        ),
-        const SizedBox(height: 16),
-        _buildCardWrapper(
-          title: 'Sistem Gerilim Seviyesi (TEDAŞ / IEC)',
-          child: DropdownButtonFormField<double>(
-            value: _systemVoltageKv,
-            dropdownColor: const Color(0xFF151921),
-            decoration: _inputDeco(),
-            items: const [
-              DropdownMenuItem(value: 34.5, child: Text('34.5 kV (TEDAŞ Standart Dağıtım)')),
-              DropdownMenuItem(value: 31.5, child: Text('31.5 kV')),
-              DropdownMenuItem(value: 15.0, child: Text('15.0 kV')),
-              DropdownMenuItem(value: 10.5, child: Text('10.5 kV (Sanayi / Dağıtım)')),
-              DropdownMenuItem(value: 6.3, child: Text('6.3 kV (Büyük Motorlar / Santral)')),
-              DropdownMenuItem(value: 0.4, child: Text('0.4 kV (Alçak Gerilim 400V)')),
-            ],
-            onChanged: (v) => setState(() => _systemVoltageKv = v!),
-          ),
-        ),
-        const SizedBox(height: 12),
-        _buildSliderCard('Trafo Gücü Sn (MVA)', _trafoMva, 0.1, 25.0, (v) => setState(() => _trafoMva = v)),
-        _buildSliderCard('Bağıl Kısa Devre Gerilimi (%uk)', _ukPercent, 3.0, 12.0, (v) => setState(() => _ukPercent = v)),
-        _buildSliderCard('IEC 60909 Gerilim Faktörü (c)', _cFactor, 1.0, 1.15, (v) => setState(() => _cFactor = v)),
+        _buildHudCard("3 FAZ KISA DEVRE AKIMI (Ik'')", "${_ikKa.toStringAsFixed(2)} kA", "Gerilim: ${_voltageKv.toStringAsFixed(1)} kV | Trafo: ${_trafoMva.toStringAsFixed(1)} MVA"),
+        const SizedBox(height: 14),
+        _buildEditableSlider("Sistem Gerilimi (kV)", _voltageKv, 0.4, 36.0, (v) => setState(() => _voltageKv = v)),
+        _buildEditableSlider("Trafo Gücü Sn (MVA)", _trafoMva, 0.1, 40.0, (v) => setState(() => _trafoMva = v)),
+        _buildEditableSlider("Kısa Devre Empedansı (%uk)", _ukPercent, 3.0, 14.0, (v) => setState(() => _ukPercent = v)),
       ],
     );
   }
 
-  // ==========================================
-  // MODÜL 2: ÇİFT KADEMELİ SELEKTİVİTE
-  // ==========================================
-  Widget _buildRelayCoordinationView() {
-    final faultA = _shortCircuitCurrentKa * 1000.0;
-    final tUp = _calcTripTime(faultA, _upIs, _upTms, _upCurve);
-    final tDown = _calcTripTime(faultA, _downIs, _downTms, _downCurve);
-    final deltaT = (tUp.isFinite && tDown.isFinite) ? (tUp - tDown) : 0.0;
-    final isSelective = deltaT >= 0.30; // 300 ms TEDAŞ Güvenlik Marjini
-
+  // --- SEKME 1: SELEKTİVİTE ---
+  Widget _buildRelayTab() {
     return ListView(
       padding: const EdgeInsets.all(16),
       children: [
-        _buildHudCard(
-          title: 'SELEKTİVİTE ZAMAN FARKI (Δt)',
-          value: '${(deltaT * 1000).toStringAsFixed(0)} ms',
-          subValue: isSelective ? 'UYGUN: Selektif (Δt ≥ 300 ms)' : 'RİSKLİ: İki röle çakışabilir (Δt < 300 ms)!',
-          accentColor: isSelective ? const Color(0xFF00E676) : const Color(0xFFFF3D00),
-          isWarning: !isSelective,
-        ),
-        const SizedBox(height: 16),
-        _buildCardWrapper(
-          title: 'Giriş / Upstream Kesici Rölesi',
+        _buildHudCard("SELEKTİVİTE KOORDİNASYONU", "TEDAŞ Uyumlu", "Giriş (Upstream) ve Fider (Downstream) Bağımsız Eşleme"),
+        const SizedBox(height: 14),
+        _buildSectionCard(
+          title: "Upstream (Giriş) Rölesi",
           child: Column(
             children: [
-              _buildDropdown(['SI', 'VI', 'EI', 'LTI'], _upCurve, (v) => setState(() => _upCurve = v)),
-              const SizedBox(height: 8),
-              _buildSliderCard('Upstream Is (A)', _upIs, 100, 3000, (v) => setState(() => _upIs = v)),
-              _buildSliderCard('Upstream TMS', _upTms, 0.05, 1.2, (v) => setState(() => _upTms = v)),
-              Text('Açma Süresi t(Up): ${tUp.isFinite ? "${tUp.toStringAsFixed(3)} s" : "Açma Yok"}',
-                  style: const TextStyle(color: Color(0xFFFFB300), fontWeight: FontWeight.bold)),
+              _buildEditableSlider("Giriş Eşik Is (A)", _upIs, 50, 3000, (v) => setState(() => _upIs = v)),
+              _buildEditableSlider("Giriş Çarpanı (TMS)", _upTms, 0.05, 1.2, (v) => setState(() => _upTms = v)),
             ],
           ),
         ),
         const SizedBox(height: 12),
-        _buildCardWrapper(
-          title: 'Fider / Downstream Kesici Rölesi',
+        _buildSectionCard(
+          title: "Downstream (Fider) Rölesi",
           child: Column(
             children: [
-              _buildDropdown(['SI', 'VI', 'EI', 'LTI'], _downCurve, (v) => setState(() => _downCurve = v)),
-              const SizedBox(height: 8),
-              _buildSliderCard('Downstream Is (A)', _downIs, 50, 1500, (v) => setState(() => _downIs = v)),
-              _buildSliderCard('Downstream TMS', _downTms, 0.05, 1.0, (v) => setState(() => _downTms = v)),
-              Text('Açma Süresi t(Down): ${tDown.isFinite ? "${tDown.toStringAsFixed(3)} s" : "Açma Yok"}',
-                  style: const TextStyle(color: Color(0xFF00E676), fontWeight: FontWeight.bold)),
+              _buildEditableSlider("Fider Eşik Is (A)", _downIs, 20, 1500, (v) => setState(() => _downIs = v)),
+              _buildEditableSlider("Fider Çarpanı (TMS)", _downTms, 0.05, 1.0, (v) => setState(() => _downTms = v)),
             ],
           ),
         ),
@@ -356,135 +272,86 @@ class _MainEngineDashboardState extends State<MainEngineDashboard> {
     );
   }
 
-  // ==========================================
-  // MODÜL 3: ARK PARLAMASI (IEEE 1584 / NFPA 70E)
-  // ==========================================
-  Widget _buildArcFlashView() {
-    final energy = _incidentEnergyCalCm2;
-    final isDanger = energy > 40.0;
+  // --- SEKME 2: ÇEVRE, RAKIM & İKLİM (YENİ MODÜL) ---
+  Widget _buildEnvironmentTab() {
+    final isAltitudeHigh = _altitudeMeters > 1000;
+    final isCondensationRisk = _relativeHumidity >= 75;
 
     return ListView(
       padding: const EdgeInsets.all(16),
       children: [
         _buildHudCard(
-          title: 'ARK ENERJİSİ (INCIDENT ENERGY)',
-          value: '${energy.toStringAsFixed(1)} cal/cm²',
-          subValue: _ppeCategory,
-          accentColor: isDanger ? const Color(0xFFFF3D00) : const Color(0xFFFFB300),
-          isWarning: isDanger,
+          "ORTAM KOŞULLARI (IEC 62271-1)",
+          "${_ambientTemp.toStringAsFixed(1)} °C / ${_altitudeMeters.toStringAsFixed(0)} m",
+          "Konum: $_locationName | Nem: %${_relativeHumidity.toStringAsFixed(0)}",
+          accentColor: isAltitudeHigh ? const Color(0xFFFF3D00) : const Color(0xFFFFB300),
         ),
-        const SizedBox(height: 16),
-        _buildCardWrapper(
-          title: 'Ark Güvenlik Parametreleri',
-          child: Column(
-            children: [
-              _buildSliderCard('Çalışma Mesafesi D (mm)', _workingDistanceMm, 300, 1200, (v) => setState(() => _workingDistanceMm = v)),
-              _buildSliderCard('Kesici Mekanik Açma Gecikmesi (ms)', _breakerMechTimeMs, 30, 90, (v) => setState(() => _breakerMechTimeMs = v)),
-              const Divider(color: Color(0xFF30363D)),
-              Text('Arıza Akımı: ${_shortCircuitCurrentKa.toStringAsFixed(2)} kA (Modül 1\'den aktarıldı)', style: const TextStyle(fontSize: 12, color: Colors.grey)),
-              Text('Toplam Ark Süresi: ${(_totalClearingTimeSec * 1000).toStringAsFixed(0)} ms', style: const TextStyle(fontSize: 12, color: Colors.grey)),
-            ],
+        const SizedBox(height: 12),
+        ElevatedButton.icon(
+          style: ElevatedButton.styleFrom(
+            backgroundColor: const Color(0xFFFFB300),
+            foregroundColor: Colors.black,
+            padding: const EdgeInsets.symmetric(vertical: 12),
           ),
+          icon: _isLoadingWeather ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.black)) : const Icon(Icons.my_location),
+          label: const Text("Konum & İnternetten Canlı Veri Al", style: TextStyle(fontWeight: FontWeight.bold)),
+          onPressed: _isLoadingWeather ? null : _fetchLiveEnvironment,
         ),
-      ],
-    );
-  }
-
-  // ==========================================
-  // MODÜL 4: KABLO, ÇEVRE & ADYABATİK TAHKİK
-  // ==========================================
-  Widget _buildCableThermalView() {
-    final sMin = _minAdiabaticSectionMm2;
-    final isSectionSafe = _selectedSection >= sMin;
-    final drop = _voltageDropPercent;
-    final isDropSafe = drop <= 3.0;
-
-    return ListView(
-      padding: const EdgeInsets.all(16),
-      children: [
-        _buildHudCard(
-          title: 'ADYABATİK ASGARİ KESİT TAHKİKİ',
-          value: 'Smin: ${sMin.toStringAsFixed(1)} mm²',
-          subValue: isSectionSafe ? 'Seçilen Kesit (${_selectedSection.toInt()} mm²) Isıl Olarak UYGUN' : 'TEHLİKE: Kısa devre anında kablo erir!',
-          accentColor: isSectionSafe ? const Color(0xFF00E676) : const Color(0xFFFF3D00),
-          isWarning: !isSectionSafe,
-        ),
-        const SizedBox(height: 16),
-        _buildCardWrapper(
-          title: 'Standart Kesit & İletken',
+        const SizedBox(height: 14),
+        _buildEditableSlider("Saha Rakımı / İrtifa (m)", _altitudeMeters, 0, 3000, (v) => setState(() => _altitudeMeters = v)),
+        _buildEditableSlider("Ortam Sıcaklığı (°C)", _ambientTemp, -10, 55, (v) => setState(() => _ambientTemp = v)),
+        _buildEditableSlider("Bağıl Nem (%RH)", _relativeHumidity, 10, 100, (v) => setState(() => _relativeHumidity = v)),
+        const SizedBox(height: 12),
+        _buildSectionCard(
+          title: "Mühendislik Standart Değerlendirmesi",
           child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              DropdownButtonFormField<double>(
-                value: _selectedSection,
-                dropdownColor: const Color(0xFF151921),
-                decoration: _inputDeco(),
-                items: [16.0, 25.0, 35.0, 50.0, 70.0, 95.0, 120.0, 150.0, 185.0, 240.0, 300.0, 400.0]
-                    .map((s) => DropdownMenuItem(value: s, child: Text('${s.toInt()} mm²'))).toList(),
-                onChanged: (v) => setState(() => _selectedSection = v!),
+              Text(
+                "• İzolasyon Düzeltme Faktörü (Ka): ${_altitudeDeratingKa.toStringAsFixed(3)}",
+                style: TextStyle(fontWeight: FontWeight.bold, color: isAltitudeHigh ? Colors.redAccent : Colors.greenAccent),
+              ),
+              Text(
+                isAltitudeHigh ? "  (DİKKAT: Rakım > 1000m olduğu için şalt hücrelerinde atlama mesafeleri ve test gerilimi artırılmalıdır!)" : "  (Rakım ≤ 1000m: Standart fabrika test gerilimleri geçerli)",
+                style: const TextStyle(fontSize: 11, color: Colors.grey),
               ),
               const SizedBox(height: 8),
-              Row(
-                children: [
-                  Expanded(
-                    child: ChoiceChip(
-                      label: const Center(child: Text("Bakır (Cu)")),
-                      selected: _isCopper,
-                      selectedColor: const Color(0xFFFFB300),
-                      onSelected: (v) => setState(() => _isCopper = true),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: ChoiceChip(
-                      label: const Center(child: Text("Alüminyum (Al)")),
-                      selected: !_isCopper,
-                      selectedColor: const Color(0xFFFFB300),
-                      onSelected: (v) => setState(() => _isCopper = false),
-                    ),
-                  ),
-                ],
+              Text("• Efektif Trafo Gücü: ${_trafoAltitudeCapacityMva.toStringAsFixed(2)} MVA (Hava seyrelmesi soğutma kaybı)", style: const TextStyle(fontWeight: FontWeight.bold)),
+              const SizedBox(height: 8),
+              Text(
+                isCondensationRisk ? "• DİKKAT: Yüksek nem nedeniyle Hücre Pano Isıtıcıları (Anti-condensation heater) MUTLAKA aktif olmalı!" : "• Nem normal seviyede, standart havalandırma yeterli.",
+                style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: isCondensationRisk ? Colors.amberAccent : Colors.white70),
               ),
             ],
           ),
-        ),
-        const SizedBox(height: 12),
-        _buildCardWrapper(
-          title: 'Çevresel Düzeltme Katsayıları (DIN VDE 0298-4)',
-          child: Column(
-            children: [
-              _buildSliderCard('Ortam Sıcaklığı (°C)', _ambientTemp, 20, 60, (v) => setState(() => _ambientTemp = v)),
-              _buildSliderCard('Yan Yana Devre Sayısı', _groupedCircuits.toDouble(), 1, 6, (v) => setState(() => _groupedCircuits = v.toInt())),
-              Text('Düzeltme Çarpanı: ${(_tempCorrectionFactor * _groupCorrectionFactor).toStringAsFixed(2)}',
-                  style: const TextStyle(fontSize: 12, color: Color(0xFFFFB300), fontWeight: FontWeight.bold)),
-            ],
-          ),
-        ),
-        const SizedBox(height: 12),
-        _buildCardWrapper(
-          title: 'Gerilim Düşümü ΔU%',
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text('%${drop.toStringAsFixed(2)}', style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: isDropSafe ? Colors.greenAccent : Colors.redAccent)),
-              Text(isDropSafe ? 'TEDAŞ Kriterine Uygun (≤ %3)' : 'Limit Aşıldı!', style: TextStyle(color: isDropSafe ? Colors.green : Colors.red)),
-            ],
-          ),
-        ),
+        )
       ],
     );
   }
 
-  // ==========================================
-  // MODÜL 5: TEK HAT ŞEMASI & KİLİTLEME SİMÜLATÖRÜ
-  // ==========================================
-  Widget _buildSingleLineDiagramView() {
+  // --- SEKME 3: KABLO & ARK ---
+  Widget _buildCableArcTab() {
+    return ListView(
+      padding: const EdgeInsets.all(16),
+      children: [
+        _buildHudCard("KABLO BOYUTLANDIRMA & IEEE 1584", "${_cableSection.toInt()} mm²", "Akım: ${_loadCurrent.toStringAsFixed(1)} A | Hat: ${_cableLength.toStringAsFixed(0)} m"),
+        const SizedBox(height: 14),
+        _buildEditableSlider("Kablo Kesiti (mm²)", _cableSection, 16, 400, (v) => setState(() => _cableSection = v)),
+        _buildEditableSlider("Hat Uzunluğu (m)", _cableLength, 10, 1000, (v) => setState(() => _cableLength = v)),
+        _buildEditableSlider("Yük Akımı (A)", _loadCurrent, 10, 600, (v) => setState(() => _loadCurrent = v)),
+      ],
+    );
+  }
+
+  // --- SEKME 4: ŞALT DİZİLİMİ & SLD (İNTERAKTİF VEKTÖREL ŞEMA) ---
+  Widget _buildSwitchgearSldTab() {
     return Column(
       children: [
-        // İnteraktif Vektörel Şema Alanı (Pan & Zoom Destekli)
+        // Çizim Kanvası (Pan & Zoom)
         Expanded(
-          flex: 5,
+          flex: 6,
           child: Container(
-            margin: const EdgeInsets.all(12),
+            margin: const EdgeInsets.all(10),
             decoration: BoxDecoration(
               color: const Color(0xFF070A0E),
               borderRadius: BorderRadius.circular(14),
@@ -493,67 +360,69 @@ class _MainEngineDashboardState extends State<MainEngineDashboard> {
             child: ClipRRect(
               borderRadius: BorderRadius.circular(14),
               child: InteractiveViewer(
-                boundaryMargin: const EdgeInsets.all(20),
-                minScale: 0.6,
-                maxScale: 2.5,
+                boundaryMargin: const EdgeInsets.all(30),
+                minScale: 0.5,
+                maxScale: 3.0,
                 child: CustomPaint(
-                  size: const Size(double.infinity, double.infinity),
-                  painter: SingleLineDiagramPainter(
-                    cb1Closed: _cb1Closed,
-                    cb2Closed: _cb2Closed,
-                    cbCouplerClosed: _cbCouplerClosed,
-                    earthSwitchClosed: _earthSwitchClosed,
-                    voltageKv: _systemVoltageKv,
-                    trafoMva: _trafoMva,
-                    ikKa: _shortCircuitCurrentKa,
-                  ),
+                  size: Size(max(MediaQuery.of(context).size.width, _cells.length * 90.0 + 40), double.infinity),
+                  painter: DynamicSwitchgearPainter(cells: _cells, voltageKv: _voltageKv, ikKa: _ikKa),
                 ),
               ),
             ),
           ),
         ),
-        // Şalt & Kesici Kilitleme Kontrol Paneli
+        // Hücre Yönetim Listesi & Ekleme Butonu
         Expanded(
-          flex: 4,
-          child: ListView(
-            padding: const EdgeInsets.symmetric(horizontal: 16),
+          flex: 5,
+          child: Column(
             children: [
-              const Text('ŞALT KESİCİ VE KİLİTLEME KONTROLÜ',
-                  style: TextStyle(color: Colors.grey, fontSize: 11, fontWeight: FontWeight.bold, letterSpacing: 1.2)),
-              const SizedBox(height: 8),
-              Row(
-                children: [
-                  Expanded(child: _buildSwitchButton("TR-1 Giriş", _cb1Closed, () => setState(() => _cb1Closed = !_cb1Closed))),
-                  const SizedBox(width: 8),
-                  Expanded(child: _buildSwitchButton("Kuplaj (BC)", _cbCouplerClosed, _toggleCoupler)),
-                  const SizedBox(width: 8),
-                  Expanded(child: _buildSwitchButton("TR-2 Giriş", _cb2Closed, () => setState(() => _cb2Closed = !_cb2Closed))),
-                ],
-              ),
-              const SizedBox(height: 8),
-              Row(
-                children: [
-                  Expanded(child: _buildSwitchButton("Topraklama", _earthSwitchClosed, _toggleEarthSwitch, isEarth: true)),
-                  const SizedBox(width: 8),
-                  Expanded(child: _buildSwitchButton("Jeneratör ATS", _atsGenActive, () => setState(() => _atsGenActive = !_atsGenActive))),
-                ],
-              ),
-              const SizedBox(height: 12),
-              // CT/VT Bilgilendirme Kartı
-              Container(
-                padding: const EdgeInsets.all(10),
-                decoration: BoxDecoration(
-                  color: const Color(0xFF151921),
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: const Color(0xFF30363D)),
-                ),
-                child: const Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    Text("Ölçü Trafoları Konfigürasyonu (IEC 61869)", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11, color: Color(0xFFFFB300))),
-                    SizedBox(height: 4),
-                    Text("• Sayaç Nüvesi: Cl 0.2S, FS ≤ 5 | Koruma: 5P20, Burden: 15 VA\n• Gerilim Trafosu: 34.5/√3 kV / 100/√3 V / 100/3 V (Açık Üçgen)", style: TextStyle(fontSize: 10, color: Colors.white70)),
+                    const Text("HÜCRE DİZİLİMİ (SWITCHGEAR BAY)", style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.grey)),
+                    ElevatedButton.icon(
+                      style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFFFB300), foregroundColor: Colors.black, padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4)),
+                      icon: const Icon(Icons.add, size: 16),
+                      label: const Text("Hücre Ekle", style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                      onPressed: _showAddCellDialog,
+                    ),
                   ],
+                ),
+              ),
+              Expanded(
+                child: ListView.builder(
+                  padding: const EdgeInsets.symmetric(horizontal: 12),
+                  itemCount: _cells.length,
+                  itemBuilder: (ctx, i) {
+                    final c = _cells[i];
+                    return Card(
+                      color: const Color(0xFF151921),
+                      margin: const EdgeInsets.only(bottom: 6),
+                      shape: RoundedRectangleBorder(side: const BorderSide(color: Color(0xFF30363D)), borderRadius: BorderRadius.circular(8)),
+                      child: ListTile(
+                        dense: true,
+                        title: Text(c.name, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+                        subtitle: Text("CT: ${c.ctRatio} | ${c.ctClass}", style: const TextStyle(fontSize: 10, color: Colors.grey)),
+                        trailing: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            IconButton(
+                              icon: Icon(c.cbClosed ? Icons.power : Icons.power_off, color: c.cbClosed ? const Color(0xFFFF3D00) : const Color(0xFF00E676)),
+                              tooltip: "Kesici Aç/Kapa",
+                              onPressed: () => _toggleCellBreaker(i),
+                            ),
+                            IconButton(
+                              icon: const Icon(Icons.settings, size: 18, color: Colors.white70),
+                              tooltip: "Ölçü Trafosu Ayarları",
+                              onPressed: () => _showCellConfigDialog(i),
+                            ),
+                          ],
+                        ),
+                      ),
+                    );
+                  },
                 ),
               ),
             ],
@@ -563,107 +432,121 @@ class _MainEngineDashboardState extends State<MainEngineDashboard> {
     );
   }
 
-  // --- KİLİTLEME MANTIKSAL KURALLARI (INTERLOCK MATRIX) ---
-  void _toggleCoupler() {
-    // 2/3 Kilitlemesi: TR1 ve TR2 kapalıyken kuplaj kapatılamaz!
-    if (!_cbCouplerClosed && _cb1Closed && _cb2Closed) {
-      _showInterlockWarning(t('interlock_warn'));
-      return;
+  // --- KİLİTLEME VE HÜCRE MANEVRA MANTIĞI ---
+  void _toggleCellBreaker(int index) {
+    final cell = _cells[index];
+    if (cell.type == CellType.coupler && !cell.cbClosed) {
+      // 2/3 Kilitlemesi: 2 giriş hücresi kapalıyken kuplaj kapatılamaz
+      final incomersClosed = _cells.where((c) => c.type == CellType.incomer && c.cbClosed).length;
+      if (incomersClosed >= 2) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(backgroundColor: Color(0xFFFF3D00), content: Text("2/3 KİLİTLEME İHLALİ: Girişler devredeyken Kuplaj kapatılamaz!")),
+        );
+        return;
+      }
     }
-    setState(() => _cbCouplerClosed = !_cbCouplerClosed);
+    setState(() => cell.cbClosed = !cell.cbClosed);
   }
 
-  void _toggleEarthSwitch() {
-    // Toprak Kilitlemesi: Fider/TR1 kesicisi kapalıyken topraklama kapatılamaz!
-    if (!_earthSwitchClosed && _cb1Closed) {
-      _showInterlockWarning(t('earth_warn'));
-      return;
-    }
-    setState(() => _earthSwitchClosed = !_earthSwitchClosed);
-  }
+  // Yeni Hücre Ekleme Dialogu
+  void _showAddCellDialog() {
+    String name = "H0${_cells.length + 1} Yeni Fider";
+    CellType type = CellType.feeder;
 
-  void _showInterlockWarning(String msg) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        backgroundColor: const Color(0xFFFF3D00),
-        content: Row(
-          children: [
-            const Icon(Icons.lock, color: Colors.white),
-            const SizedBox(width: 8),
-            Expanded(child: Text(msg, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12))),
+    showDialog(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setDState) => AlertDialog(
+          backgroundColor: const Color(0xFF151921),
+          title: const Text("Yeni Hücre Ekle", style: TextStyle(color: Color(0xFFFFB300), fontSize: 16)),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(
+                decoration: const InputDecoration(labelText: "Hücre Adı"),
+                onChanged: (v) => name = v,
+              ),
+              const SizedBox(height: 12),
+              DropdownButtonFormField<CellType>(
+                value: type,
+                dropdownColor: const Color(0xFF151921),
+                items: const [
+                  DropdownMenuItem(value: CellType.feeder, child: Text("Çıkış / Fider Hücresi")),
+                  DropdownMenuItem(value: CellType.incomer, child: Text("Giriş Hücresi")),
+                  DropdownMenuItem(value: CellType.coupler, child: Text("Bara Kuplaj Hücresi")),
+                  DropdownMenuItem(value: CellType.vtMetering, child: Text("Gerilim Ölçü Hücresi")),
+                ],
+                onChanged: (v) => setDState(() => type = v!),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(ctx), child: const Text("İptal")),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFFFB300), foregroundColor: Colors.black),
+              onPressed: () {
+                setState(() => _cells.add(SwitchgearCell(id: "C${_cells.length + 1}", name: name, type: type, cbClosed: true)));
+                Navigator.pop(ctx);
+              },
+              child: const Text("Ekle"),
+            ),
           ],
         ),
       ),
     );
   }
 
-  // --- YARDIMCI BİLEŞENLER ---
-  Widget _buildSwitchButton(String label, bool state, VoidCallback onTap, {bool isEarth = false}) {
-    Color activeColor = isEarth ? const Color(0xFF00E676) : const Color(0xFFFFB300);
-    return ElevatedButton(
-      style: ElevatedButton.styleFrom(
-        backgroundColor: state ? activeColor : const Color(0xFF151921),
-        foregroundColor: state ? Colors.black : Colors.white70,
-        side: BorderSide(color: state ? activeColor : const Color(0xFF30363D)),
-        padding: const EdgeInsets.symmetric(vertical: 12),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-      ),
-      onPressed: onTap,
-      child: Column(
-        children: [
-          Text(label, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
-          Text(state ? (isEarth ? "TOPRAKLI" : "KAPALI") : "AÇIK", style: const TextStyle(fontSize: 9)),
+  // Hücre İçi CT / VT Ayar Dialogu
+  void _showCellConfigDialog(int index) {
+    final c = _cells[index];
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: const Color(0xFF151921),
+        title: Text("${c.name} - Ölçü Trafoları", style: const TextStyle(color: Color(0xFFFFB300), fontSize: 15)),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            DropdownButtonFormField<String>(
+              value: c.ctRatio,
+              decoration: const InputDecoration(labelText: "Akım Trafosu Oranı"),
+              dropdownColor: const Color(0xFF151921),
+              items: ["50-100/5A", "100-200/5A", "200-400/5A", "400-800/5A", "1000-2000/5A"]
+                  .map((e) => DropdownMenuItem(value: e, child: Text(e))).toList(),
+              onChanged: (v) => setState(() => c.ctRatio = v!),
+            ),
+            const SizedBox(height: 10),
+            DropdownButtonFormField<String>(
+              value: c.ctClass,
+              decoration: const InputDecoration(labelText: "CT Nüve Sınıfları (IEC 61869)"),
+              dropdownColor: const Color(0xFF151921),
+              items: ["5P20 15VA + 0.2S 10VA", "5P10 10VA + 0.5 15VA", "10P10 15VA"]
+                  .map((e) => DropdownMenuItem(value: e, child: Text(e))).toList(),
+              onChanged: (v) => setState(() => c.ctClass = v!),
+            ),
+          ],
+        ),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.delete, color: Colors.redAccent),
+            tooltip: "Hücreyi Sil",
+            onPressed: () {
+              setState(() => _cells.removeAt(index));
+              Navigator.pop(ctx);
+            },
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFFFB300), foregroundColor: Colors.black),
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text("Tamam"),
+          ),
         ],
       ),
     );
   }
 
-  Widget _buildHudCard({
-    required String title,
-    required String value,
-    required String subValue,
-    required Color accentColor,
-    bool isWarning = false,
-  }) {
-    return Container(
-      padding: const EdgeInsets.all(18),
-      decoration: BoxDecoration(
-        color: const Color(0xFF151921),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: isWarning ? const Color(0xFFFF3D00) : accentColor.withValues(alpha: 0.6), width: 1.5),
-      ),
-      child: Column(
-        children: [
-          Text(title, style: const TextStyle(color: Colors.grey, fontSize: 11, fontWeight: FontWeight.w600, letterSpacing: 1.1)),
-          const SizedBox(height: 6),
-          Text(value, style: TextStyle(fontSize: 32, fontWeight: FontWeight.w900, color: isWarning ? const Color(0xFFFF3D00) : accentColor)),
-          const SizedBox(height: 4),
-          Text(subValue, textAlign: TextAlign.center, style: TextStyle(color: isWarning ? Colors.redAccent : Colors.grey, fontSize: 13)),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildCardWrapper({required String title, required Widget child}) {
-    return Container(
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: const Color(0xFF151921),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: const Color(0xFF30363D)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(title, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.white70)),
-          const SizedBox(height: 10),
-          child,
-        ],
-      ),
-    );
-  }
-
-  Widget _buildSliderCard(String title, double val, double min, double max, ValueChanged<double> onChanged) {
+  // --- SAYIYA DOKUNUP ELLE DEĞER GİRME WIDGETI ---
+  Widget _buildEditableSlider(String title, double val, double min, double max, ValueChanged<double> onChanged) {
     return Container(
       margin: const EdgeInsets.only(bottom: 8),
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
@@ -679,179 +562,165 @@ class _MainEngineDashboardState extends State<MainEngineDashboard> {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Text(title, style: const TextStyle(fontSize: 12, color: Colors.white70)),
-              Text(val.toStringAsFixed(1), style: const TextStyle(fontWeight: FontWeight.bold, color: Color(0xFFFFB300), fontSize: 13)),
+              InkWell(
+                onTap: () => _showManualNumberInputDialog(title, val, onChanged),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                  decoration: BoxDecoration(border: Border.all(color: const Color(0xFFFFB300)), borderRadius: BorderRadius.circular(4)),
+                  child: Row(
+                    children: [
+                      Text(val.toStringAsFixed(1), style: const TextStyle(fontWeight: FontWeight.bold, color: Color(0xFFFFB300), fontSize: 13)),
+                      const SizedBox(width: 4),
+                      const Icon(Icons.edit, size: 12, color: Color(0xFFFFB300)),
+                    ],
+                  ),
+                ),
+              ),
             ],
           ),
-          Slider(value: val, min: min, max: max, activeColor: const Color(0xFFFFB300), inactiveColor: const Color(0xFF30363D), onChanged: onChanged),
+          Slider(value: val.clamp(min, max), min: min, max: max, activeColor: const Color(0xFFFFB300), inactiveColor: const Color(0xFF30363D), onChanged: onChanged),
         ],
       ),
     );
   }
 
-  Widget _buildDropdown(List<String> items, String current, ValueChanged<String> onChanged) {
-    return DropdownButtonFormField<String>(
-      value: current,
-      dropdownColor: const Color(0xFF151921),
-      decoration: _inputDeco(),
-      items: items.map((e) => DropdownMenuItem(value: e, child: Text(e))).toList(),
-      onChanged: (v) => onChanged(v!),
+  void _showManualNumberInputDialog(String title, double current, ValueChanged<double> onEntered) {
+    final c = TextEditingController(text: current.toStringAsFixed(1));
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: const Color(0xFF151921),
+        title: Text(title, style: const TextStyle(fontSize: 14, color: Color(0xFFFFB300))),
+        content: TextField(
+          controller: c,
+          keyboardType: const TextInputType.numberWithOptions(decimal: true),
+          autofocus: true,
+          decoration: const InputDecoration(labelText: "Net Değer Girin"),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text("İptal")),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFFFB300), foregroundColor: Colors.black),
+            onPressed: () {
+              final parsed = double.tryParse(c.text);
+              if (parsed != null) onEntered(parsed);
+              Navigator.pop(ctx);
+            },
+            child: const Text("Uygula"),
+          ),
+        ],
+      ),
     );
   }
 
-  InputDecoration _inputDeco() {
-    return InputDecoration(
-      contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-      filled: true,
-      fillColor: const Color(0xFF0B0E14),
-      enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: const BorderSide(color: Color(0xFF30363D))),
-      focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: const BorderSide(color: Color(0xFFFFB300))),
+  Widget _buildHudCard(String title, String value, String sub, {Color accentColor = const Color(0xFFFFB300)}) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: const Color(0xFF151921),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: accentColor.withValues(alpha: 0.6), width: 1.5),
+      ),
+      child: Column(
+        children: [
+          Text(title, style: const TextStyle(color: Colors.grey, fontSize: 11, fontWeight: FontWeight.bold, letterSpacing: 1.1)),
+          const SizedBox(height: 6),
+          Text(value, style: TextStyle(fontSize: 26, fontWeight: FontWeight.w900, color: accentColor)),
+          const SizedBox(height: 4),
+          Text(sub, textAlign: TextAlign.center, style: const TextStyle(color: Colors.grey, fontSize: 12)),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSectionCard({required String title, required Widget child}) {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(color: const Color(0xFF151921), borderRadius: BorderRadius.circular(10), border: Border.all(color: const Color(0xFF30363D))),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(title, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.white70)), const SizedBox(height: 8), child]),
     );
   }
 }
 
 // ==========================================
-// VEKTÖREL TEK HAT ŞEMASI ÇİZİM MOTORU (CANVAS)
+// DİNAMİK VEKTÖREL ŞALT VE HÜCRE ÇİZİM MOTORU
 // ==========================================
-class SingleLineDiagramPainter extends CustomPainter {
-  final bool cb1Closed;
-  final bool cb2Closed;
-  final bool cbCouplerClosed;
-  final bool earthSwitchClosed;
+class DynamicSwitchgearPainter extends CustomPainter {
+  final List<SwitchgearCell> cells;
   final double voltageKv;
-  final double trafoMva;
   final double ikKa;
 
-  SingleLineDiagramPainter({
-    required this.cb1Closed,
-    required this.cb2Closed,
-    required this.cbCouplerClosed,
-    required this.earthSwitchClosed,
-    required this.voltageKv,
-    required this.trafoMva,
-    required this.ikKa,
-  });
+  DynamicSwitchgearPainter({required this.cells, required this.voltageKv, required this.ikKa});
 
   @override
   void paint(Canvas canvas, Size size) {
-    final w = size.width;
     final h = size.height;
+    final busY = h * 0.40;
+    final bayWidth = 90.0;
 
-    final paintLine = Paint()
-      ..color = const Color(0xFF8B949E)
-      ..strokeWidth = 2.0
-      ..style = PaintingStyle.stroke;
+    final busPaint = Paint()..color = const Color(0xFFFFB300)..strokeWidth = 4.0;
+    final linePaint = Paint()..color = const Color(0xFF8B949E)..strokeWidth = 1.8..style = PaintingStyle.stroke;
 
-    final paintLiveBus = Paint()
-      ..color = const Color(0xFFFFB300) // Enerjili Sarı
-      ..strokeWidth = 4.0;
+    // Ana Bara Çizgisi
+    final totalBusWidth = max(size.width, (cells.length + 1) * bayWidth);
+    canvas.drawLine(Offset(20, busY), Offset(totalBusWidth - 20, busY), busPaint);
+    _drawText(canvas, "ANA BARA: ${voltageKv.toStringAsFixed(1)} kV (Ik'': ${ikKa.toStringAsFixed(1)} kA)", const Offset(24, 15), const Color(0xFFFFB300), 11);
 
-    final paintDeadBus = Paint()
-      ..color = const Color(0xFF30363D)
-      ..strokeWidth = 4.0;
+    // Her Hücreyi Dikey Fider Olarak Çiz
+    for (int i = 0; i < cells.length; i++) {
+      final x = 50.0 + (i * bayWidth);
+      final cell = cells[i];
 
-    final paintEarth = Paint()
-      ..color = const Color(0xFF00E676)
-      ..strokeWidth = 2.5;
+      // Hücre Paneli Sınır Çizgisi (Kesikli gri)
+      final borderPaint = Paint()..color = const Color(0xFF21262D)..style = PaintingStyle.stroke..strokeWidth = 1.0;
+      canvas.drawRect(Rect.fromLTWH(x - (bayWidth / 2) + 6, 35, bayWidth - 12, h - 50), borderPaint);
 
-    // Koordinatlar
-    final busY = h * 0.45;
-    final xBus1 = w * 0.22;
-    final xCoupler = w * 0.50;
-    final xBus2 = w * 0.78;
+      // Hücre İsim Etiketi
+      _drawText(canvas, cell.name.split(' ').first, Offset(x - 20, 42), Colors.white70, 9);
 
-    // 1. Ana Baralar (Busbar 1 ve Busbar 2)
-    canvas.drawLine(Offset(w * 0.08, busY), Offset(xCoupler - 20, busY), cb1Closed ? paintLiveBus : paintDeadBus);
-    canvas.drawLine(Offset(xCoupler + 20, busY), Offset(w * 0.92, busY), (cb2Closed || (cb1Closed && cbCouplerClosed)) ? paintLiveBus : paintDeadBus);
+      if (cell.type == CellType.incomer) {
+        // Giriş Hücresi: Yukarıdan Baraya
+        canvas.drawLine(Offset(x, 60), Offset(x, busY - 14), linePaint);
+        _drawBreaker(canvas, Offset(x, busY - 22), cell.cbClosed);
+        canvas.drawLine(Offset(x, busY - 14), Offset(x, busY), linePaint);
+      } else if (cell.type == CellType.coupler) {
+        // Kuplaj: Barayı kesen kesici
+        _drawBreaker(canvas, Offset(x, busY), cell.cbClosed);
+      } else {
+        // Çıkış Fideri / Ölçü: Baradan Aşağıya
+        canvas.drawLine(Offset(x, busY), Offset(x, busY + 20), linePaint);
+        _drawBreaker(canvas, Offset(x, busY + 28), cell.cbClosed);
+        canvas.drawLine(Offset(x, busY + 36), Offset(x, h * 0.78), linePaint);
 
-    // Kuplaj Kesici Hattı
-    canvas.drawLine(Offset(xCoupler - 20, busY), Offset(xCoupler - 10, busY), paintLine);
-    _drawBreakerSymbol(canvas, Offset(xCoupler, busY), cbCouplerClosed);
-    canvas.drawLine(Offset(xCoupler + 10, busY), Offset(xCoupler + 20, busY), paintLine);
+        // CT Sembolü
+        canvas.drawCircle(Offset(x, busY + 52), 5, linePaint);
+        canvas.drawCircle(Offset(x, busY + 60), 5, linePaint);
 
-    // 2. Trafo 1 Giriş Fideri (Sol Taraf)
-    canvas.drawLine(Offset(xBus1, h * 0.10), Offset(xBus1, h * 0.18), paintLine);
-    _drawTransformerSymbol(canvas, Offset(xBus1, h * 0.22));
-    canvas.drawLine(Offset(xBus1, h * 0.26), Offset(xBus1, h * 0.35), paintLine);
-    _drawBreakerSymbol(canvas, Offset(xBus1, h * 0.38), cb1Closed);
-    canvas.drawLine(Offset(xBus1, h * 0.41), Offset(xBus1, busY), paintLine);
-
-    // 3. Trafo 2 Giriş Fideri (Sağ Taraf)
-    canvas.drawLine(Offset(xBus2, h * 0.10), Offset(xBus2, h * 0.18), paintLine);
-    _drawTransformerSymbol(canvas, Offset(xBus2, h * 0.22));
-    canvas.drawLine(Offset(xBus2, h * 0.26), Offset(xBus2, h * 0.35), paintLine);
-    _drawBreakerSymbol(canvas, Offset(xBus2, h * 0.38), cb2Closed);
-    canvas.drawLine(Offset(xBus2, h * 0.41), Offset(xBus2, busY), paintLine);
-
-    // 4. Çıkış Fideri & Topraklama Ayırıcısı (Aşağıya Doğru)
-    canvas.drawLine(Offset(xBus1, busY), Offset(xBus1, h * 0.65), paintLine);
-    _drawBreakerSymbol(canvas, Offset(xBus1, h * 0.68), cb1Closed);
-    canvas.drawLine(Offset(xBus1, h * 0.71), Offset(xBus1, h * 0.82), paintLine);
-
-    // Topraklama Ayırıcısı Sembolü
-    if (earthSwitchClosed) {
-      canvas.drawLine(Offset(xBus1, h * 0.76), Offset(xBus1 + 30, h * 0.76), paintEarth);
-      _drawEarthGlyph(canvas, Offset(xBus1 + 30, h * 0.76));
+        // Çıkış Ucu
+        canvas.drawCircle(Offset(x, h * 0.78), 3, Paint()..color = const Color(0xFFFFB300));
+      }
     }
-
-    // 5. Etiketler & Mühendislik Bilgileri
-    _drawText(canvas, "BARA-1 ($voltageKv kV)", Offset(w * 0.08, busY - 18), const Color(0xFFFFB300), 10);
-    _drawText(canvas, "BARA-2 ($voltageKv kV)", Offset(w * 0.72, busY - 18), const Color(0xFFFFB300), 10);
-    _drawText(canvas, "TR-1: ${trafoMva}MVA", Offset(xBus1 + 16, h * 0.20), Colors.white70, 9);
-    _drawText(canvas, "TR-2: ${trafoMva}MVA", Offset(xBus2 + 16, h * 0.20), Colors.white70, 9);
-    _drawText(canvas, "Ik'': ${ikKa.toStringAsFixed(1)}kA", Offset(w * 0.08, busY + 8), const Color(0xFFFF3D00), 9);
   }
 
-  void _drawBreakerSymbol(Canvas canvas, Offset center, bool isClosed) {
-    final rect = Rect.fromCenter(center: center, width: 18, height: 18);
-    final paint = Paint()
-      ..color = isClosed ? const Color(0xFFFF3D00) : const Color(0xFF00E676)
-      ..style = PaintingStyle.fill;
-    final border = Paint()
-      ..color = Colors.white
-      ..strokeWidth = 1.5
-      ..style = PaintingStyle.stroke;
-
-    canvas.drawRect(rect, paint);
-    canvas.drawRect(rect, border);
-
-    // Çapraz veya düz hat
+  void _drawBreaker(Canvas canvas, Offset center, bool isClosed) {
+    final rect = Rect.fromCenter(center: center, width: 14, height: 14);
+    final fill = Paint()..color = isClosed ? const Color(0xFFFF3D00) : const Color(0xFF00E676);
+    final stroke = Paint()..color = Colors.white..style = PaintingStyle.stroke..strokeWidth = 1.2;
+    canvas.drawRect(rect, fill);
+    canvas.drawRect(rect, stroke);
     if (!isClosed) {
-      canvas.drawLine(Offset(center.dx - 6, center.dy - 6), Offset(center.dx + 6, center.dy + 6), border);
+      canvas.drawLine(Offset(center.dx - 4, center.dy - 4), Offset(center.dx + 4, center.dy + 4), stroke);
     }
-  }
-
-  void _drawTransformerSymbol(Canvas canvas, Offset center) {
-    final p = Paint()
-      ..color = const Color(0xFF8B949E)
-      ..strokeWidth = 1.5
-      ..style = PaintingStyle.stroke;
-    canvas.drawCircle(Offset(center.dx, center.dy - 6), 9, p);
-    canvas.drawCircle(Offset(center.dx, center.dy + 6), 9, p);
-  }
-
-  void _drawEarthGlyph(Canvas canvas, Offset point) {
-    final p = Paint()
-      ..color = const Color(0xFF00E676)
-      ..strokeWidth = 2.0;
-    canvas.drawLine(Offset(point.dx, point.dy - 8), Offset(point.dx, point.dy + 8), p);
-    canvas.drawLine(Offset(point.dx + 5, point.dy - 5), Offset(point.dx + 5, point.dy + 5), p);
-    canvas.drawLine(Offset(point.dx + 10, point.dy - 2), Offset(point.dx + 10, point.dy + 2), p);
   }
 
   void _drawText(Canvas canvas, String text, Offset offset, Color color, double size) {
-    final textSpan = TextSpan(text: text, style: TextStyle(color: color, fontSize: size, fontWeight: FontWeight.bold));
-    final textPainter = TextPainter(text: textSpan, textDirection: TextDirection.ltr);
-    textPainter.layout();
-    textPainter.paint(canvas, offset);
+    final tp = TextPainter(
+      text: TextSpan(text: text, style: TextStyle(color: color, fontSize: size, fontWeight: FontWeight.bold)),
+      textDirection: TextDirection.ltr,
+    )..layout();
+    tp.paint(canvas, offset);
   }
 
   @override
-  bool shouldRepaint(covariant SingleLineDiagramPainter oldDelegate) {
-    return oldDelegate.cb1Closed != cb1Closed ||
-        oldDelegate.cb2Closed != cb2Closed ||
-        oldDelegate.cbCouplerClosed != cbCouplerClosed ||
-        oldDelegate.earthSwitchClosed != earthSwitchClosed ||
-        oldDelegate.voltageKv != voltageKv ||
-        oldDelegate.ikKa != ikKa;
-  }
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => true;
 }
