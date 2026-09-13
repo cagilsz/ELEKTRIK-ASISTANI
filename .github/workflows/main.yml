@@ -1,0 +1,34 @@
+name: Build APK
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [ main ]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v3
+        with:
+          distribution: 'zulu'
+          java-version: '17'
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: 'stable'
+
+      - name: Projeyi Hazırla ve APK Derle
+        run: |
+          flutter create power_app
+          cp lib/main.dart power_app/lib/main.dart
+          cd power_app
+          flutter build apk --release
+
+      - name: APK Dosyasını Yükle
+        uses: actions/upload-artifact@v4
+        with:
+          name: ElektrikAsistani-APK
+          path: power_app/build/app/outputs/flutter-apk/app-release.apk
