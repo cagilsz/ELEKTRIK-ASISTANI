@@ -17,7 +17,7 @@ class PowerFieldProApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => MaterialApp(
-        title: 'PowerField Pro v6.6',
+        title: 'PowerField Pro v6.7',
         debugShowCheckedModeBanner: false,
         theme: ThemeData(
           brightness: Brightness.dark,
@@ -745,7 +745,7 @@ class _MainCockpitState extends State<MainCockpit> with WidgetsBindingObserver {
 
   Map<String, double> get harmonics => ElectricalEngine.calcHarmonics(
     fundamentalCurrentA: p.loadCurrentA,
-    harmonicOrders: const [3, 5, 7, 11],
+    harmonicOrders: const [3.0, 5.0, 7.0, 11.0],
     harmonicPercentOfFundamental: [p.harmonicH3Pct, p.harmonicH5Pct, p.harmonicH7Pct, p.harmonicH11Pct],
     shortCircuitMva: p.gridSscMva,
     systemVoltageKv: p.voltageKv,
@@ -783,7 +783,7 @@ class _MainCockpitState extends State<MainCockpit> with WidgetsBindingObserver {
     try {
       final prefs = await SharedPreferences.getInstance();
       final json = jsonEncode(projects.map((e) => e.toJson()).toList());
-      await prefs.setString('powerfield_projects_v66', json);
+      await prefs.setString('powerfield_projects_v67', json);
     } catch (_) {
       // Persistence must never block the engineering UI.
     }
@@ -846,7 +846,7 @@ class _MainCockpitState extends State<MainCockpit> with WidgetsBindingObserver {
     _loadingSavedProjects = true;
     try {
       final prefs = await SharedPreferences.getInstance();
-      final raw = prefs.getString('powerfield_projects_v66');
+      final raw = prefs.getString('powerfield_projects_v67');
       if (raw == null || raw.trim().isEmpty) return;
       final decoded = jsonDecode(raw);
       if (decoded is! List) return;
