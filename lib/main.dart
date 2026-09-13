@@ -13,7 +13,7 @@ class PowerFieldProApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'PowerField Pro v2.0',
+      title: 'PowerField Pro v3.0 Global',
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
         brightness: Brightness.dark,
@@ -32,52 +32,80 @@ class PowerFieldProApp extends StatelessWidget {
   }
 }
 
-enum AppLanguage { tr, en, de, es, fr, zh, ja }
+enum AppLanguage { tr, en, de, es, fr, zh, ja, ru }
 enum CellType { incomer, feeder, coupler, vtMetering, transformer }
 
 // Ekipman Modelleri
 class BreakerModel {
   final String name;
   final String vendor;
+  final String medium; // SF6 / Vakum / Saf Hava
   final double defaultLimitMicroOhm;
   final double typicalTripTimeMs;
-  const BreakerModel(this.name, this.vendor, this.defaultLimitMicroOhm, this.typicalTripTimeMs);
+  final String standardCode;
+
+  const BreakerModel(this.name, this.vendor, this.medium, this.defaultLimitMicroOhm, this.typicalTripTimeMs, this.standardCode);
 }
 
 const List<BreakerModel> kBreakers = [
-  BreakerModel("Schneider LF2 / LF3 (SF6)", "Schneider Electric", 40.0, 42.0),
-  BreakerModel("Schneider Evolis (Vakum)", "Schneider Electric", 35.0, 38.0),
-  BreakerModel("Siemens SION 3AE / 3AH", "Siemens", 45.0, 44.0),
-  BreakerModel("ABB VD4 (Vakum)", "ABB", 38.0, 40.0),
-  BreakerModel("ABB HD4 (SF6)", "ABB", 42.0, 45.0),
-  BreakerModel("Alstom / Areva HVX", "Alstom", 48.0, 48.0),
-  BreakerModel("TEDAŞ Standart Yerli Vakum", "Yerli / TEDAŞ", 50.0, 45.0),
+  BreakerModel("Schneider FB4 (Fluarc Santral Tipi)", "Schneider Electric", "SF6 Gazlı", 32.0, 45.0, "IEC 62271 / IEEE C37"),
+  BreakerModel("Schneider SF1 / SF2 (Fluarc Klasik)", "Schneider Electric", "SF6 Gazlı", 38.0, 42.0, "IEC 62271-100"),
+  BreakerModel("Schneider LF1 / LF2 / LF3", "Schneider Electric", "SF6 Gazlı", 40.0, 42.0, "IEC 62271-100"),
+  BreakerModel("Schneider Evolis", "Schneider Electric", "Vakum", 35.0, 38.0, "IEC 62271-100"),
+  BreakerModel("Schneider EasyPact EXE", "Schneider Electric", "Vakum", 38.0, 40.0, "IEC 62271-100"),
+  BreakerModel("Siemens SION 3AE / 3AH", "Siemens", "Vakum", 45.0, 44.0, "IEC / DIN VDE 0671"),
+  BreakerModel("ABB VD4", "ABB", "Vakum", 38.0, 40.0, "IEC 62271-100"),
+  BreakerModel("ABB HD4", "ABB", "SF6 Gazlı", 42.0, 45.0, "IEC 62271-100"),
+  BreakerModel("Alstom / Areva HVX", "Alstom", "Vakum", 46.0, 48.0, "IEC 62271-100"),
+  BreakerModel("Ormazabal CPG / CGS", "Ormazabal", "Vakum", 42.0, 45.0, "IEC 62271-100"),
+  BreakerModel("Tavrida BB/TEL (ВВ/TEL ГОСТ)", "Tavrida / Rusya", "Vakum", 35.0, 32.0, "ГОСТ Р 52565 / ПУЭ 7"),
+  BreakerModel("TEDAŞ Standart Yerli Vakum", "Yerli / TEDAŞ", "Vakum", 50.0, 45.0, "TEDAŞ-MLZ/96-015"),
+];
+
+class SwitchgearModel {
+  final String name;
+  final String type; // AIS, GIS, SSIS, RMU
+  final String standard;
+  const SwitchgearModel(this.name, this.type, this.standard);
+}
+
+const List<SwitchgearModel> kSwitchgears = [
+  SwitchgearModel("Schneider SM6-36", "Hava Yalıtımlı Modüler (AIS)", "IEC 62271-200 / TEDAŞ"),
+  SwitchgearModel("Schneider Premset (2SI)", "Korumalı Katı Yalıtımlı (SSIS)", "IEC 62271-200"),
+  SwitchgearModel("Schneider AirSeT (SF6-Free)", "Saf Hava + Vakum (Yeşil Şalt)", "IEC 62271-200 / EU F-Gas"),
+  SwitchgearModel("Schneider RM6 / FBX", "Kompakt Gaz Yalıtımlı RMU", "IEC 62271-200"),
+  SwitchgearModel("Schneider GHA", "Gaz Yalıtımlı Şalt (GIS)", "IEC 62271-200"),
+  SwitchgearModel("Schneider MCset / Fluair F400", "Ağır Hizmet Metal-Clad", "IEC 62271-200"),
+  SwitchgearModel("Ormazabal CGMcosmos / CGM.3", "Modüler Kompakt RMU/GIS", "IEC 62271-200 / UNE 211026"),
+  SwitchgearModel("Ormazabal GAE", "Metal-Enclosed Dağıtım Hücresi", "IEC 62271-200"),
+  SwitchgearModel("Siemens 8BT2 / NXAIR", "Hava Yalıtımlı Metal-Clad", "IEC 62271-200"),
+  SwitchgearModel("Siemens 8DJH / SIMOSEC", "Gaz Yalıtımlı RMU / Kompakt", "IEC 62271-200"),
+  SwitchgearModel("ABB UniGear ZS1 / UniSec", "Metal-Clad / Hava Yalıtımlı", "IEC 62271-200"),
+  SwitchgearModel("ABB SafeRing / SafePlus", "Kompakt Ring Ana Ünitesi (RMU)", "IEC 62271-200"),
+  SwitchgearModel("Alstom Fluokit M24", "Klasik Modüler Hücre", "IEC 62271-200"),
+  SwitchgearModel("Ulusoy HMH-36 / Astor", "TEDAŞ Standart Modüler", "TEDAŞ MYD/96-015"),
+  SwitchgearModel("КРУ / КСО Серия (ГОСТ)", "Rus Tipi Metal Muhafazalı", "ГОСТ 14693 / ПУЭ 7"),
+  SwitchgearModel("KYN28A-12 / XGN (GB/T)", "Çin Tipi Çekmeceli Zırhlı Hücre", "GB/T 3906 / DL/T 404"),
 ];
 
 class RelayModel {
   final String name;
   final String menuPath;
-  const RelayModel(this.name, this.menuPath);
+  final String standardCode;
+  const RelayModel(this.name, this.menuPath, this.standardCode);
 }
 
 const List<RelayModel> kRelays = [
-  RelayModel("Schneider Sepam 20/40/80", "Sepam: Sarı Tuş -> Koruma (50/51) -> Is ve TMS"),
-  RelayModel("Schneider Easergy P3/P5", "Easergy: Parametreler -> Grup 1 -> 51 -> Is ve k çarpanı"),
-  RelayModel("Siemens Siprotec 4 (7SJ6x)", "Siprotec 4: Settings -> 50/51 -> 51 Pickup & Time Dial"),
-  RelayModel("Siemens Siprotec 5 (7SJ8x)", "Siprotec 5: Function Group Line -> Overcurrent 51-1"),
-  RelayModel("ABB Relion REF615/620", "REF615: Menu -> Settings -> Protection -> PHIPTOC1"),
-  RelayModel("Alstom MiCOM P122/P123", "MiCOM: Group 1 Current -> I> Set & I> TMS"),
-  RelayModel("Kael / Mikro / Yerli", "Menü: Ayarlar -> Koruma -> 51 Eşik ve Eğri Seçimi"),
-];
-
-const List<String> kSwitchgears = [
-  "Schneider SM6-36 (Metal-Enclosed)",
-  "Schneider MCset (Metal-Clad)",
-  "Siemens 8BT2 (Metal-Clad)",
-  "Siemens NXAIR (Metal-Clad)",
-  "ABB UniGear ZS1",
-  "Alstom Fluokit M24",
-  "Ulusoy HMH-36 / Astor (TEDAŞ)",
+  RelayModel("Schneider Sepam 20/40/80", "Sepam: Sarı Tuş -> Koruma (50/51) -> Is ve TMS", "IEC 60255"),
+  RelayModel("Schneider Easergy P3/P5", "Easergy: Parametreler -> Grup 1 -> 51 -> Is ve k çarpanı", "IEC 60255"),
+  RelayModel("Siemens Siprotec 4 (7SJ6x)", "Siprotec 4: Settings -> 50/51 -> 51 Pickup & Time Dial", "IEC 60255 / IEEE C37"),
+  RelayModel("Siemens Siprotec 5 (7SJ8x)", "Siprotec 5: Function Group Line -> Overcurrent 51-1", "IEC 60255 / IEEE C37"),
+  RelayModel("ABB Relion REF615/620", "REF615: Menu -> Settings -> Protection -> PHIPTOC1", "IEC 60255"),
+  RelayModel("Alstom MiCOM P122/P123", "MiCOM: Group 1 Current -> I> Set & I> TMS", "IEC 60255"),
+  RelayModel("БМРЗ / Сириус (ГОСТ)", "БМРЗ Меню: Уставки -> МТЗ-1 / МТЗ-2 -> Ток и время сраб.", "ГОСТ Р 59302 (ПУЭ)"),
+  RelayModel("Nari / Sifang (国网 GB/T)", "保护定值 -> 过流一段/二段 -> 定值电流与延时", "GB/T 14598 / DL/T"),
+  RelayModel("Mitsubishi / Toshiba (JEC/JIS)", "設定メニュー -> 過電流継電器(51) -> 限時タップ・レバー", "JEC-2500 / JIS C 4602"),
+  RelayModel("Kael / Mikro / Yerli", "Menü: Ayarlar -> Koruma -> 51 Eşik ve Eğri Seçimi", "TEDAŞ / IEC 60255"),
 ];
 
 class SwitchgearCell {
@@ -109,14 +137,13 @@ class _MainCockpitState extends State<MainCockpit> {
   int _activeTab = 0;
   AppLanguage _lang = AppLanguage.tr;
 
-  // Bağımsız Seçimler
   int _selectedSwitchgearIdx = 0;
   int _selectedBreakerIdx = 0;
   int _selectedRelayIdx = 0;
 
   BreakerModel get _activeBreaker => kBreakers[_selectedBreakerIdx];
   RelayModel get _activeRelay => kRelays[_selectedRelayIdx];
-  String get _activeSwitchgear => kSwitchgears[_selectedSwitchgearIdx];
+  SwitchgearModel get _activeSwitchgear => kSwitchgears[_selectedSwitchgearIdx];
 
   // 1. Şebeke & Trafo
   double _voltageKv = 34.5;
@@ -135,12 +162,12 @@ class _MainCockpitState extends State<MainCockpit> {
   double _ctSecondaryRatio = 5.0;
 
   // 3. Kesici SAT Teşhis
-  double _resR = 36.2;
-  double _resS = 38.5;
-  double _resT = 37.1;
-  double _timeR = 42.0;
-  double _timeS = 43.5;
-  double _timeT = 42.8;
+  double _resR = 34.2;
+  double _resS = 35.8;
+  double _resT = 34.9;
+  double _timeR = 41.5;
+  double _timeS = 42.8;
+  double _timeT = 42.1;
   final List<TestRecord> _testHistory = [];
 
   // 4. Kablo & Çevre
@@ -149,9 +176,9 @@ class _MainCockpitState extends State<MainCockpit> {
   double _cableSection = 50.0;
   bool _isCopper = true;
   double _workingDistanceMm = 610.0;
-  double _ambientTemp = 28.0;
+  double _ambientTemp = 25.0;
   double _altitudeMeters = 50.0;
-  double _relativeHumidity = 60.0;
+  double _relativeHumidity = 55.0;
   String _locationName = "Saha / Çevrimdışı";
   bool _isLoadingWeather = false;
   bool _locationPermissionAlways = false;
@@ -166,56 +193,125 @@ class _MainCockpitState extends State<MainCockpit> {
     SwitchgearCell(id: "C6", name: "H06 TR-2 Giriş", type: CellType.incomer, cbClosed: true, ctRatio: "400/5A"),
   ];
 
-  // 7 Dilli Çeviri Sözlüğü
+  // 8 DİLLİ TAM YERELLEŞTİRME SÖZLÜĞÜ (HER SAYFA İÇİN)
   String t(String k) {
     const d = {
       'net': {
         'tr': 'Şebeke & Trafo', 'en': 'Grid & Trafo', 'de': 'Netz & Trafo',
-        'es': 'Red y Trafo', 'fr': 'Réseau & Transfo', 'zh': '电网与变压器', 'ja': '系統と変圧器'
+        'es': 'Red y Trafo', 'fr': 'Réseau & Transfo', 'zh': '电网与变压器', 'ja': '系統と変圧器', 'ru': 'Сеть и Трансф.'
       },
       'relay': {
         'tr': 'Röle & TCC', 'en': 'Relay & TCC', 'de': 'Schutz & TCC',
-        'es': 'Relé y TCC', 'fr': 'Relais & TCC', 'zh': '保护与TCC曲线', 'ja': 'リレーとTCC'
+        'es': 'Relé y TCC', 'fr': 'Relais & TCC', 'zh': '保护与TCC曲线', 'ja': 'リレーとTCC', 'ru': 'РЗиА и ВТХ'
       },
       'sat': {
         'tr': 'Kesici SAT', 'en': 'CB SAT Test', 'de': 'LS Diagnose',
-        'es': 'Prueba SAT', 'fr': 'Essais SAT', 'zh': '断路器SAT测试', 'ja': '遮断器SAT試験'
+        'es': 'Prueba SAT', 'fr': 'Essais SAT', 'zh': '断路器SAT测试', 'ja': '遮断器SAT試験', 'ru': 'Испытания SAT'
       },
       'cable': {
         'tr': 'Kablo & Ark', 'en': 'Cable & Arc', 'de': 'Kabel & Lichtb.',
-        'es': 'Cable y Arco', 'fr': 'Câble & Arc', 'zh': '电缆与电弧', 'ja': 'ケーブルとアーク'
+        'es': 'Cable y Arco', 'fr': 'Câble & Arc', 'zh': '电缆与电弧', 'ja': 'ケーブルとアーク', 'ru': 'Кабель и Дуга'
       },
       'sld': {
         'tr': 'Şalt & SLD', 'en': 'Switchgear', 'de': 'Schaltanlage',
-        'es': 'Subestación', 'fr': 'Poste & SLD', 'zh': '一次系统图', 'ja': '単線結線図'
+        'es': 'Subestación', 'fr': 'Poste & SLD', 'zh': '一次系统图', 'ja': '単線結線図', 'ru': 'ОРУ/ЗРУ и Схема'
+      },
+      'ik_title': {
+        'tr': '3 FAZ KISA DEVRE AKIMI (Ik\'\')', 'en': '3-PHASE SHORT CIRCUIT (Ik\'\')', 'de': '3-POL. KURZSCHLUSSSTROM (Ik\'\')',
+        'es': 'CORRIENTE CORTOCIRCUITO 3F (Ik\'\')', 'fr': 'COURANT COURT-CIRCUIT TRIPHASÉ (Ik\'\')', 'zh': '三相短路电流 (Ik\'\')', 'ja': '三相短絡電流 (Ik\'\')', 'ru': 'ТОК ТРЕХФАЗНОГО КЗ (Iк\'\')'
+      },
+      'sys_voltage': {
+        'tr': 'Sistem Gerilimi (kV)', 'en': 'System Voltage (kV)', 'de': 'Netzspannung (kV)',
+        'es': 'Tensión del Sistema (kV)', 'fr': 'Tension du Réseau (kV)', 'zh': '系统额定电压 (kV)', 'ja': '公称系統電圧 (kV)', 'ru': 'Номинальное напряжение (кВ)'
+      },
+      'trafo_power': {
+        'tr': 'Trafo Gücü Sn (MVA)', 'en': 'Trafo Power Sn (MVA)', 'de': 'Trafoleistung Sn (MVA)',
+        'es': 'Potencia Trafo Sn (MVA)', 'fr': 'Puissance Transfo Sn (MVA)', 'zh': '变压器容量 Sn (MVA)', 'ja': '変圧器容量 Sn (MVA)', 'ru': 'Мощность трансф. Sn (МВА)'
+      },
+      'trafo_uk': {
+        'tr': 'Kısa Devre Empedansı (%uk)', 'en': 'Impedance Voltage (%uk)', 'de': 'Kurzschlussspannung (%uk)',
+        'es': 'Impedancia Cortocircuito (%uk)', 'fr': 'Tension Court-Circuit (%uk)', 'zh': '阻抗电压 (%uk)', 'ja': '短絡インピーダンス (%uk)', 'ru': 'Напряжение КЗ (%uk)'
+      },
+      'climate_title': {
+        'tr': 'Saha İklim, Sıcaklık & Rakım', 'en': 'Field Climate, Temp & Altitude', 'de': 'Klima, Temperatur & Höhe',
+        'es': 'Clima, Temperatura y Altitud', 'fr': 'Climat, Température & Altitude', 'zh': '现场气候、温度与海拔', 'ja': '現地の気候・温度・標高', 'ru': 'Климат, температура и высота'
       },
       'fetch_live': {
         'tr': 'Canlı Çek (GPS/Ağ)', 'en': 'Fetch Live Data', 'de': 'Live Daten',
-        'es': 'Obtener En Vivo', 'fr': 'Données en Direct', 'zh': '获取实时数据', 'ja': '実環境データ取得'
+        'es': 'Obtener En Vivo', 'fr': 'Données en Direct', 'zh': '获取实时数据', 'ja': '実データ取得', 'ru': 'Запросить данные'
+      },
+      'preset_cities': {
+        'tr': 'Hızlı Uluslararası Şalt Şablonları:', 'en': 'Quick Substation Templates:', 'de': 'Schnelle Schaltanlagen-Vorlagen:',
+        'es': 'Plantillas de Subestación:', 'fr': 'Modèles de Sous-Station:', 'zh': '国际典型变电站预设:', 'ja': 'プリセット変電所設定:', 'ru': 'Шаблоны подстанций:'
+      },
+      'margin_title': {
+        'tr': 'SELEKTİVİTE MARJİNİ (Δt)', 'en': 'SELECTIVITY MARGIN (Δt)', 'de': 'STAFFELZEITSPANNE (Δt)',
+        'es': 'MARGEN SELECTIVIDAD (Δt)', 'fr': 'MARGE DE SÉLECTIVITÉ (Δt)', 'zh': '级差配合时间 (Δt)', 'ja': '協調時間差 (Δt)', 'ru': 'СТУПЕНЬ СЕЛЕКТИВНОСТИ (Δt)'
+      },
+      'tcc_chart_title': {
+        'tr': 'LOG-LOG RÖLE KOORDİNASYON EĞRİSİ (TCC)', 'en': 'LOG-LOG COORDINATION CURVE (TCC)', 'de': 'LOG-LOG STAFFELPLAN (TCC)',
+        'es': 'CURVA DE COORDINACIÓN LOG-LOG (TCC)', 'fr': 'COURBE DE SÉLECTIVITÉ LOG-LOG (TCC)', 'zh': '双对数保护配合曲线 (TCC)', 'ja': '対数座標系 保護協調曲線 (TCC)', 'ru': 'ВТХ КАРТА СЕЛЕКТИВНОСТИ (LOG-LOG)'
+      },
+      'sat_hud_title': {
+        'tr': 'SAT TEŞHİS', 'en': 'SAT DIAGNOSTICS', 'de': 'SAT DIAGNOSE',
+        'es': 'DIAGNÓSTICO SAT', 'fr': 'DIAGNOSTIC SAT', 'zh': '现场验收诊断 (SAT)', 'ja': 'SAT試験診断', 'ru': 'ДИАГНОСТИКА SAT'
+      },
+      'sat_pass': {
+        'tr': 'TESTTEN GEÇTİ (PASS)', 'en': 'TEST PASSED', 'de': 'BESTANDEN (PASS)',
+        'es': 'PRUEBA APROBADA', 'fr': 'TEST VALIDE (PASS)', 'zh': '验收合格 (PASS)', 'ja': '合格 (PASS)', 'ru': 'ГОДЕН (PASS)'
+      },
+      'sat_fail': {
+        'tr': 'KUSURLU (FAIL)', 'en': 'TEST FAILED', 'de': 'FEHLERHAFT (FAIL)',
+        'es': 'RECHAZADO (FAIL)', 'fr': 'ÉCHEC (FAIL)', 'zh': '不合格 (FAIL)', 'ja': '不合格 (FAIL)', 'ru': 'ДЕФЕКТ (FAIL)'
+      },
+      'gear_select': {
+        'tr': 'Şalt Hücresi Tipi:', 'en': 'Switchgear Bay Type:', 'de': 'Schaltfeld-Typ:',
+        'es': 'Tipo de Celda:', 'fr': 'Type de Tableau HTA:', 'zh': '开关柜型号:', 'ja': 'スイッチギア形式:', 'ru': 'Тип ячейки КРУ/КСО:'
+      },
+      'breaker_select': {
+        'tr': 'Kesici Modeli & Ortamı:', 'en': 'Breaker Model & Medium:', 'de': 'Leistungsschalter-Typ:',
+        'es': 'Modelo Interruptor:', 'fr': 'Disjoncteur HTA:', 'zh': '断路器型号与介质:', 'ja': '遮断器形式・消弧媒体:', 'ru': 'Выключатель и среда:'
+      },
+      'relay_select': {
+        'tr': 'Koruma Rölesi & Standart:', 'en': 'Protection Relay & Std:', 'de': 'Schutzrelais & Norm:',
+        'es': 'Relé de Protección:', 'fr': 'Relais de Protection:', 'zh': '微机保护装置与标准:', 'ja': '保護継電器・準拠規格:', 'ru': 'Реле защиты и стандарт:'
+      },
+      'paste_cibano': {
+        'tr': 'CIBANO/Test Verisi Yapıştır', 'en': 'Paste CIBANO/Test Data', 'de': 'CIBANO Daten einfügen',
+        'es': 'Pegar Datos CIBANO', 'fr': 'Coller Données Test', 'zh': '粘贴测试仪数据', 'ja': '試験器データ貼付', 'ru': 'Вставить из CIBANO'
+      },
+      'official_report': {
+        'tr': 'Resmi Rapor Üret', 'en': 'Generate Official Report', 'de': 'Prüfbericht erstellen',
+        'es': 'Generar Informe', 'fr': 'Générer Rapport', 'zh': '生成正式试验报告', 'ja': '公式試験成績書作成', 'ru': 'Оформить протокол'
+      },
+      'cable_hud_title': {
+        'tr': 'ADYABATİK KABLO TAHKİKİ', 'en': 'ADIABATIC THERMAL SIZING', 'de': 'ADIABATISCHE KABELAUSLEGUNG',
+        'es': 'CÁLCULO TÉRMICO ADIABÁTICO', 'fr': 'DIMENSIONNEMENT ADIABATIQUE', 'zh': '热稳定截面校验 (绝热)', 'ja': '断熱短絡熱容量照査', 'ru': 'ТЕРМИЧЕСКАЯ СТОЙКОСТЬ (КЗ)'
       },
       'perm_title': {
-        'tr': 'Konum İzni Gerekli', 'en': 'Location Permission', 'de': 'Standortberechtigung',
-        'es': 'Permiso de Ubicación', 'fr': 'Autorisation de Position', 'zh': '需要定位权限', 'ja': '位置情報の許可'
+        'tr': 'Konum İzni Gerekli', 'en': 'Location Permission Needed', 'de': 'Standortberechtigung nötig',
+        'es': 'Permiso de Ubicación', 'fr': 'Permission Requise', 'zh': '需要位置权限', 'ja': '位置情報が必要です', 'ru': 'Требуется доступ к геопозиции'
       },
       'perm_desc': {
-        'tr': 'Şalt sahası rakımını, sıcaklığını ve IEC 62271-1 yalıtım çarpanını (Ka) hesaplamak için konumunuza erişim gerekiyor.',
-        'en': 'Access needed to calculate substation altitude, temperature, and IEC 62271-1 insulation derating (Ka).',
-        'de': 'Erforderlich zur Berechnung von Höhe, Temperatur und IEC 62271-1 Isolationsfaktor (Ka).',
-        'es': 'Se requiere acceso para calcular altitud, temperatura y factor de aislamiento IEC 62271-1 (Ka).',
-        'fr': 'Accès requis pour calculer l’altitude, la température et le déclassement diélectrique CEI 62271-1 (Ka).',
-        'zh': '需要获取位置以自动计算变电站海拔、温度和 IEC 62271-1 绝缘修正系数 (Ka)。',
-        'ja': '変電所標高、温度、IEC 62271-1 絶縁補正係数 (Ka) を算出するために位置情報が必要です。'
+        'tr': 'Şalt sahası rakımını, sıcaklığını ve IEC 62271-1 / GOST / GB yalıtım düzeltme katsayısını (Ka) otomatik hesaplamak için konum gereklidir.',
+        'en': 'Required to compute substation elevation, ambient temperature, and insulation derating (Ka) under IEC/IEEE/GOST/GB standards.',
+        'de': 'Erforderlich zur Bestimmung von Höhe, Temperatur und dielektrischer Korrektur (Ka) gemäß IEC/GOST.',
+        'es': 'Requerido para calcular elevación, temperatura y factor de aislamiento (Ka) según normas IEC/IEEE/GOST.',
+        'fr': 'Nécessaire pour calculer altitude, température et déclassement diélectrique (Ka) selon normes CEI/GOST.',
+        'zh': '用于根据 IEC 62271-1 / GB/T 11022 标准精确计算变电站海拔、气温与绝缘外绝缘修正系数 (Ka)。',
+        'ja': 'IEC 62271-1 / JEC 規格に基づく変電所の標高、周囲温度、絶縁補正係数 (Ka) を算出するために使用します。',
+        'ru': 'Необходимо для расчета высоты подстанции над уровнем моря, температуры и коэффициента снижения изоляции (Ka) по ГОСТ 15150 и IEC.'
       },
       'allow_always': {
         'tr': 'Her Zaman İzin Ver', 'en': 'Allow All The Time', 'de': 'Immer Zulassen',
-        'es': 'Permitir Siempre', 'fr': 'Toujours Autoriser', 'zh': '始终允许', 'ja': '常に許可'
+        'es': 'Permitir Siempre', 'fr': 'Toujours Autoriser', 'zh': '始终允许', 'ja': '常に許可', 'ru': 'Всегда разрешать'
       },
       'deny': {
         'tr': 'Reddet', 'en': 'Deny', 'de': 'Ablehnen',
-        'es': 'Denegar', 'fr': 'Refuser', 'zh': '拒绝', 'ja': '拒否'
+        'es': 'Denegar', 'fr': 'Refuser', 'zh': '拒绝', 'ja': '拒否', 'ru': 'Отклонить'
       },
     };
-    return d[k]?[_lang.name] ?? d[k]?['tr'] ?? k;
+    return d[k]?[_lang.name] ?? d[k]?['en'] ?? k;
   }
 
   // Hesaplama Motoru
@@ -246,7 +342,7 @@ class _MainCockpitState extends State<MainCockpit> {
     return tmsVal * (k / denom);
   }
 
-  // --- İZİN TALEBİ VE CANLI VERİ ÇEKME ---
+  // --- İZİN VE CANLI VERİ ---
   void _requestLocationAndFetch() {
     if (_locationPermissionAlways) {
       _executeLiveFetch();
@@ -268,10 +364,7 @@ class _MainCockpitState extends State<MainCockpit> {
         ),
         content: Text(t('perm_desc'), style: const TextStyle(fontSize: 12, color: Colors.white70)),
         actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: Text(t('deny'), style: const TextStyle(color: Colors.grey)),
-          ),
+          TextButton(onPressed: () => Navigator.pop(ctx), child: Text(t('deny'), style: const TextStyle(color: Colors.grey))),
           ElevatedButton(
             style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFFFB300), foregroundColor: Colors.black),
             onPressed: () {
@@ -289,7 +382,7 @@ class _MainCockpitState extends State<MainCockpit> {
   Future<void> _executeLiveFetch() async {
     setState(() => _isLoadingWeather = true);
     try {
-      final client = HttpClient()..connectionTimeout = const Duration(seconds: 6)..userAgent = "PowerFieldPro/2.0";
+      final client = HttpClient()..connectionTimeout = const Duration(seconds: 6)..userAgent = "PowerFieldPro/3.0";
       final r = await client.getUrl(Uri.parse('https://ipwho.is/'));
       final res = await r.close();
       if (res.statusCode == 200) {
@@ -313,7 +406,7 @@ class _MainCockpitState extends State<MainCockpit> {
 
             if (mounted) {
               ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(backgroundColor: const Color(0xFF00E676), content: Text("✓ Konum Doğrulandı: $_locationName | ${_altitudeMeters.toInt()}m")),
+                SnackBar(backgroundColor: const Color(0xFF00E676), content: Text("✓ $_locationName | ${_altitudeMeters.toInt()}m")),
               );
             }
             return;
@@ -324,7 +417,7 @@ class _MainCockpitState extends State<MainCockpit> {
     } catch (_) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(backgroundColor: Color(0xFFFF3D00), content: Text("Canlı bağlantı kurulamadı. Manuel şablonları kullanabilirsiniz.")),
+          const SnackBar(backgroundColor: Color(0xFFFF3D00), content: Text("Canlı veri alınamadı. Şablon şehirleri kullanabilirsiniz.")),
         );
       }
     } finally {
@@ -332,7 +425,16 @@ class _MainCockpitState extends State<MainCockpit> {
     }
   }
 
-  // --- CIBANO / OMICRON METİN AYRIŞTIRICI (REGEX PARSER) ---
+  void _applyCityPreset(String name, double temp, double alt, double humidity) {
+    setState(() {
+      _locationName = name;
+      _ambientTemp = temp;
+      _altitudeMeters = alt;
+      _relativeHumidity = humidity;
+    });
+  }
+
+  // --- CIBANO PARSER ---
   void _showCibanoPasteDialog() {
     final tc = TextEditingController();
     showDialog(
@@ -343,20 +445,20 @@ class _MainCockpitState extends State<MainCockpit> {
           children: [
             Icon(Icons.content_paste, color: Color(0xFFFFB300)),
             SizedBox(width: 8),
-            Text("Omicron/CIBANO Veri Ayrıştırıcı", style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold)),
+            Text("Omicron/CIBANO Parser", style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold)),
           ],
         ),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text("Test cihazından kopyalanan metni yapıştırın (R, S, T dirençleri ve zamanlar otomatik doldurulur):", style: TextStyle(fontSize: 11, color: Colors.grey)),
+            const Text("CIBANO 500 veya mikro-ohmmetre çıktısını yapıştırın:", style: TextStyle(fontSize: 11, color: Colors.grey)),
             const SizedBox(height: 8),
             TextField(
               controller: tc,
               maxLines: 4,
               decoration: const InputDecoration(
-                hintText: "Örn: R: 35.4 uOhm, S: 37.1 uOhm, T: 36.0 uOhm\ntR: 42.1 ms, tS: 43.5 ms, tT: 43.0 ms",
+                hintText: "R: 34.2 uOhm, S: 35.8 uOhm, T: 34.9 uOhm\ntR: 41.5 ms, tS: 42.8 ms, tT: 42.1 ms",
                 hintStyle: TextStyle(fontSize: 11, color: Colors.white30),
               ),
             ),
@@ -370,7 +472,7 @@ class _MainCockpitState extends State<MainCockpit> {
               _parseTestReportText(tc.text);
               Navigator.pop(ctx);
             },
-            child: const Text("Ayrıştır ve Doldur"),
+            child: const Text("Ayrıştır"),
           ),
         ],
       ),
@@ -378,7 +480,6 @@ class _MainCockpitState extends State<MainCockpit> {
   }
 
   void _parseTestReportText(String text) {
-    // Regex ile R, S, T değerlerini yakala
     final rMatch = RegExp(r'R\s*[:=]\s*([0-9]+[.,]?[0-9]*)', caseSensitive: false).firstMatch(text);
     final sMatch = RegExp(r'S\s*[:=]\s*([0-9]+[.,]?[0-9]*)', caseSensitive: false).firstMatch(text);
     final tMatch = RegExp(r'T\s*[:=]\s*([0-9]+[.,]?[0-9]*)', caseSensitive: false).firstMatch(text);
@@ -398,11 +499,11 @@ class _MainCockpitState extends State<MainCockpit> {
     });
 
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(backgroundColor: Color(0xFF00E676), content: Text("✓ Test cihazı verileri başarıyla aktarıldı!")),
+      const SnackBar(backgroundColor: Color(0xFF00E676), content: Text("✓ Test verileri başarıyla aktarıldı!")),
     );
   }
 
-  // --- RESMİ TEDAŞ / IEC KABUL RAPORU MODALI ---
+  // --- KÜRESEL SAT PROTOKOL RAPORU MODALI ---
   void _showOfficialSatPdfReport() {
     final limit = _activeBreaker.defaultLimitMicroOhm;
     final maxRes = max(_resR, max(_resS, _resT));
@@ -416,16 +517,6 @@ class _MainCockpitState extends State<MainCockpit> {
     final isSyncOk = deltaSyncMs <= 3.0;
     final isOverallPass = isResOk && isAsymOk && isSyncOk;
 
-    // Geçmişe kaydet
-    _testHistory.insert(0, TestRecord(
-      timestamp: "${DateTime.now().hour}:${DateTime.now().minute} - ${DateTime.now().day}/${DateTime.now().month}",
-      substation: "$_voltageKv kV Trafo Merkezi",
-      breaker: _activeBreaker.name,
-      maxRes: maxRes,
-      syncDelta: deltaSyncMs,
-      passed: isOverallPass,
-    ));
-
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -437,58 +528,42 @@ class _MainCockpitState extends State<MainCockpit> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Center(
-                child: Container(width: 40, height: 4, decoration: BoxDecoration(color: Colors.grey, borderRadius: BorderRadius.circular(2))),
-              ),
+              Center(child: Container(width: 40, height: 4, decoration: BoxDecoration(color: Colors.grey, borderRadius: BorderRadius.circular(2)))),
               const SizedBox(height: 16),
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  const Text("TEDAŞ / IEC 62271 RESMİ SAT PROTOKOLÜ", style: TextStyle(fontWeight: FontWeight.w900, fontSize: 13, color: Color(0xFFFFB300))),
+                  const Text("SAT COMMISSIONING PROTOCOL", style: TextStyle(fontWeight: FontWeight.w900, fontSize: 13, color: Color(0xFFFFB300))),
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                     decoration: BoxDecoration(color: isOverallPass ? const Color(0xFF00E676) : const Color(0xFFFF3D00), borderRadius: BorderRadius.circular(4)),
-                    child: Text(isOverallPass ? "KABUL EDİLDİ (PASS)" : "RED (FAIL)", style: const TextStyle(color: Colors.black, fontWeight: FontWeight.bold, fontSize: 11)),
+                    child: Text(isOverallPass ? "PASS / ГОДЕН" : "FAIL / ДЕФЕКТ", style: const TextStyle(color: Colors.black, fontWeight: FontWeight.bold, fontSize: 11)),
                   ),
                 ],
               ),
-              const Divider(color: Color(0xFF30363D), height: 24),
-              _buildReportRow("Tesis & Konum", "$_locationName (Rakım: ${_altitudeMeters.toInt()}m, Ka: ${_altitudeDeratingKa.toStringAsFixed(3)})"),
-              _buildReportRow("Şalt Hücresi", _activeSwitchgear),
-              _buildReportRow("Kesici Tipi", _activeBreaker.name),
-              _buildReportRow("Koruma Rölesi", _activeRelay.name),
-              const Divider(color: Color(0xFF30363D), height: 24),
-              const Text("1. KONTAK GEÇİŞ DİRENÇLERİ (DUCTOR - µΩ)", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11, color: Colors.white70)),
-              const SizedBox(height: 6),
-              Text("• Faz R: ${_resR.toStringAsFixed(1)} µΩ | Faz S: ${_resS.toStringAsFixed(1)} µΩ | Faz T: ${_resT.toStringAsFixed(1)} µΩ"),
-              Text("• Ölçülen Maksimum Direnç: ${maxRes.toStringAsFixed(1)} µΩ (Şartname Sınırı: ≤ ${limit.toInt()} µΩ)"),
-              Text("• Fazlar Arası Asimetri: %${resAsym.toStringAsFixed(1)} (Sınır: ≤ %15)"),
-              const SizedBox(height: 12),
-              const Text("2. KUTUPLAR ARASI SENKRONİZM & AÇMA ZAMANI (ms)", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11, color: Colors.white70)),
-              const SizedBox(height: 6),
-              Text("• Açma Süreleri: tR = ${_timeR.toStringAsFixed(1)}ms | tS = ${_timeS.toStringAsFixed(1)}ms | tT = ${_timeT.toStringAsFixed(1)}ms"),
-              Text("• Maksimum Senkronizm Farkı (Δt): ${deltaSyncMs.toStringAsFixed(1)} ms (IEC 62271-100 Sınırı: ≤ 3.0 ms)"),
-              const Divider(color: Color(0xFF30363D), height: 24),
-              Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(border: Border.all(color: const Color(0xFF30363D)), borderRadius: BorderRadius.circular(8)),
-                child: const Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text("Testi Yapan Mühendis:", style: TextStyle(fontSize: 10, color: Colors.grey)), Text("İmza & Onay", style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold))]),
-                    Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text("Kabul Heyeti / TEDAŞ:", style: TextStyle(fontSize: 10, color: Colors.grey)), Text("Mühür & Kaşe", style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold))]),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 16),
+              const Divider(color: Color(0xFF30363D), height: 20),
+              _buildReportRow("Norm / Standart", "${_activeBreaker.standardCode} & ${_activeSwitchgear.standard}"),
+              _buildReportRow("Konum / Rakım", "$_locationName (Alt: ${_altitudeMeters.toInt()}m, Ka: ${_altitudeDeratingKa.toStringAsFixed(3)})"),
+              _buildReportRow("Hücre / Switchgear", "${_activeSwitchgear.name} [${_activeSwitchgear.type}]"),
+              _buildReportRow("Kesici / Breaker", "${_activeBreaker.name} (${_activeBreaker.medium})"),
+              _buildReportRow("Röle / Relay", "${_activeRelay.name} [${_activeRelay.standardCode}]"),
+              const Divider(color: Color(0xFF30363D), height: 20),
+              const Text("1. CONTACT RESISTANCE (DUCTOR / МИКРООММЕТР)", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11, color: Colors.white70)),
+              const SizedBox(height: 4),
+              Text("• Phase R: ${_resR.toStringAsFixed(1)} µΩ | Phase S: ${_resS.toStringAsFixed(1)} µΩ | Phase T: ${_resT.toStringAsFixed(1)} µΩ"),
+              Text("• Max Measured: ${maxRes.toStringAsFixed(1)} µΩ (Limit: ≤ ${limit.toInt()} µΩ)"),
+              Text("• Asymmetry: %${resAsym.toStringAsFixed(1)} (Limit: ≤ %15)"),
+              const SizedBox(height: 10),
+              const Text("2. SYNCHRONISM & TIMING (ОПЕРАЦИИ И СИНХРОНИЗМ)", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11, color: Colors.white70)),
+              const SizedBox(height: 4),
+              Text("• Opening: tR=${_timeR.toStringAsFixed(1)}ms | tS=${_timeS.toStringAsFixed(1)}ms | tT=${_timeT.toStringAsFixed(1)}ms"),
+              Text("• Pole Discrepancy (Δt): ${deltaSyncMs.toStringAsFixed(1)} ms (IEC/GOST/GB Limit: ≤ 3.0 ms)"),
+              const Divider(color: Color(0xFF30363D), height: 20),
               ElevatedButton.icon(
                 style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFFFB300), foregroundColor: Colors.black, minimumSize: const Size(double.infinity, 44)),
-                icon: const Icon(Icons.share),
-                label: const Text("Raporu Paylaş / Kaydet", style: TextStyle(fontWeight: FontWeight.bold)),
-                onPressed: () {
-                  Navigator.pop(ctx);
-                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("SAT Raporu kaydedildi ve paylaşıma hazır!")));
-                },
+                icon: const Icon(Icons.verified),
+                label: const Text("Protokolü Onayla ve Paylaş", style: TextStyle(fontWeight: FontWeight.bold)),
+                onPressed: () => Navigator.pop(ctx),
               )
             ],
           ),
@@ -499,7 +574,7 @@ class _MainCockpitState extends State<MainCockpit> {
 
   Widget _buildReportRow(String label, String value) {
     return Padding(
-      padding: const EdgeInsets.only(bottom: 6),
+      padding: const EdgeInsets.only(bottom: 4),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
@@ -519,11 +594,10 @@ class _MainCockpitState extends State<MainCockpit> {
           children: [
             Icon(Icons.bolt, color: Color(0xFFFFB300), size: 24),
             SizedBox(width: 8),
-            Text('POWERFIELD PRO v2.0', style: TextStyle(fontWeight: FontWeight.w900, letterSpacing: 1.2, fontSize: 16)),
+            Text('POWERFIELD PRO v3.0', style: TextStyle(fontWeight: FontWeight.w900, letterSpacing: 1.2, fontSize: 15)),
           ],
         ),
         actions: [
-          // 7 DİLLİ AÇILIR MENÜ
           Container(
             margin: const EdgeInsets.symmetric(vertical: 10, horizontal: 8),
             padding: const EdgeInsets.symmetric(horizontal: 6),
@@ -540,6 +614,7 @@ class _MainCockpitState extends State<MainCockpit> {
                 DropdownMenuItem(value: AppLanguage.fr, child: Text('FR 🇫🇷', style: TextStyle(fontSize: 11))),
                 DropdownMenuItem(value: AppLanguage.zh, child: Text('ZH 🇨🇳', style: TextStyle(fontSize: 11))),
                 DropdownMenuItem(value: AppLanguage.ja, child: Text('JA 🇯🇵', style: TextStyle(fontSize: 11))),
+                DropdownMenuItem(value: AppLanguage.ru, child: Text('RU 🇷🇺', style: TextStyle(fontSize: 11))),
               ],
               onChanged: (l) => setState(() => _lang = l!),
             ),
@@ -575,7 +650,7 @@ class _MainCockpitState extends State<MainCockpit> {
   }
 
   // ==========================================
-  // SEKME 0: ŞEBEKE, TRAFO & KONUM TAHKİKİ
+  // SEKME 0: ŞEBEKE, TRAFO & KÜRESEL İKLİM
   // ==========================================
   Widget _buildGridTab() {
     final inA = _trafoNominalCurrentA;
@@ -586,18 +661,17 @@ class _MainCockpitState extends State<MainCockpit> {
       padding: const EdgeInsets.all(16),
       children: [
         _buildHudCard(
-          "3 FAZ KISA DEVRE AKIMI (Ik'')",
+          t('ik_title'),
           "${_ikKa.toStringAsFixed(2)} kA",
           "In: ${inA.toStringAsFixed(1)} A | Inrush (10xIn): ${inrushA.toStringAsFixed(0)} A",
         ),
         const SizedBox(height: 14),
-        _buildEditableSlider("Sistem Gerilimi (kV)", _voltageKv, 0.4, 36.0, (v) => setState(() => _voltageKv = v)),
-        _buildEditableSlider("Trafo Gücü Sn (MVA)", _trafoMva, 0.1, 40.0, (v) => setState(() => _trafoMva = v)),
-        _buildEditableSlider("Kısa Devre Empedansı (%uk)", _ukPercent, 3.0, 14.0, (v) => setState(() => _ukPercent = v)),
+        _buildEditableSlider(t('sys_voltage'), _voltageKv, 0.4, 36.0, (v) => setState(() => _voltageKv = v)),
+        _buildEditableSlider(t('trafo_power'), _trafoMva, 0.1, 40.0, (v) => setState(() => _trafoMva = v)),
+        _buildEditableSlider(t('trafo_uk'), _ukPercent, 3.0, 14.0, (v) => setState(() => _ukPercent = v)),
         const SizedBox(height: 12),
-        // KONUM VE İKLİM PANELİ
         _buildSectionCard(
-          title: "Saha İklim, Sıcaklık & Rakım (IEC 62271-1)",
+          title: t('climate_title'),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -606,29 +680,38 @@ class _MainCockpitState extends State<MainCockpit> {
                 children: [
                   Expanded(
                     child: Text(
-                      "$_locationName\n${_ambientTemp.toStringAsFixed(1)}°C / ${_altitudeMeters.toInt()}m / %${_relativeHumidity.toInt()} Nem",
+                      "$_locationName\n${_ambientTemp.toStringAsFixed(1)}°C / ${_altitudeMeters.toInt()}m / %${_relativeHumidity.toInt()}",
                       style: const TextStyle(fontSize: 11, color: Colors.white70, fontWeight: FontWeight.bold),
                     ),
                   ),
                   ElevatedButton.icon(
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFFFFB300),
-                      foregroundColor: Colors.black,
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                    ),
-                    icon: _isLoadingWeather
-                        ? const SizedBox(width: 12, height: 12, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.black))
-                        : const Icon(Icons.my_location, size: 14),
-                    label: Text(t('fetch_live'), style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
+                    style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFFFB300), foregroundColor: Colors.black, padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4)),
+                    icon: _isLoadingWeather ? const SizedBox(width: 12, height: 12, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.black)) : const Icon(Icons.my_location, size: 14),
+                    label: Text(t('fetch_live'), style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold)),
                     onPressed: _isLoadingWeather ? null : _requestLocationAndFetch,
                   ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              Text(t('preset_cities'), style: const TextStyle(fontSize: 10, color: Colors.grey)),
+              const SizedBox(height: 4),
+              Wrap(
+                spacing: 6,
+                runSpacing: 4,
+                children: [
+                  ActionChip(label: const Text("İzmir (34.5kV / 25m)", style: TextStyle(fontSize: 9)), onPressed: () => _applyCityPreset("İzmir (TEDAŞ)", 30.0, 25.0, 65.0)),
+                  ActionChip(label: const Text("Moscow / Москва (10kV / 150m)", style: TextStyle(fontSize: 9)), onPressed: () => _applyCityPreset("Москва (ГОСТ)", 18.0, 150.0, 60.0)),
+                  ActionChip(label: const Text("Beijing / 北京 (10kV / 45m)", style: TextStyle(fontSize: 9)), onPressed: () => _applyCityPreset("北京 (GB/T SGCC)", 26.0, 45.0, 55.0)),
+                  ActionChip(label: const Text("Tokyo / 東京 (6.6kV / 20m)", style: TextStyle(fontSize: 9)), onPressed: () => _applyCityPreset("Tokyo (JEC/TEPCO)", 24.0, 20.0, 70.0)),
+                  ActionChip(label: const Text("Madrid / Ormazabal (20kV)", style: TextStyle(fontSize: 9)), onPressed: () => _applyCityPreset("Madrid (Iberdrola)", 28.0, 660.0, 40.0)),
+                  ActionChip(label: const Text("Erzurum Yüksek İrtifa (1890m)", style: TextStyle(fontSize: 9)), onPressed: () => _applyCityPreset("Erzurum (Ka > 1.1)", 12.0, 1890.0, 45.0)),
                 ],
               ),
               const Divider(color: Color(0xFF30363D)),
               Text(
                 isAltitudeHigh
-                    ? "• DİKKAT: Rakım > 1000m (Ka = ${_altitudeDeratingKa.toStringAsFixed(3)}). Hücre izolasyon test gerilimi artırılmalıdır!"
-                    : "• Rakım ≤ 1000m (Ka = 1.000). Standart fabrika dielektrik test seviyeleri geçerlidir.",
+                    ? "• DİKKAT: Rakım > 1000m (Ka = ${_altitudeDeratingKa.toStringAsFixed(3)}). IEC 62271-1 / GOST / GB test seviyesi artırılmalı!"
+                    : "• Rakım ≤ 1000m (Ka = 1.000). Standart fabrika test seviyeleri geçerlidir.",
                 style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: isAltitudeHigh ? Colors.redAccent : Colors.greenAccent),
               ),
             ],
@@ -639,7 +722,7 @@ class _MainCockpitState extends State<MainCockpit> {
   }
 
   // ==========================================
-  // SEKME 1: RÖLE KOORDİNASYONU & CANLI TCC GRAFİĞİ
+  // SEKME 1: RÖLE KOORDİNASYONU & TCC EĞRİSİ
   // ==========================================
   Widget _buildRelayAndTccTab() {
     final faultA = _ikKa * 1000.0;
@@ -652,16 +735,14 @@ class _MainCockpitState extends State<MainCockpit> {
       padding: const EdgeInsets.all(16),
       children: [
         _buildHudCard(
-          "SELEKTİVİTE MARJİNİ (Δt)",
+          t('margin_title'),
           "${(deltaT * 1000).toStringAsFixed(0)} ms",
-          isSelective ? "SELEKTİF (TEDAŞ/IEC Δt ≥ 300ms)" : "ÇAKIŞMA RİSKİ! İki kesici birden açabilir",
+          isSelective ? "SELEKTİF (IEC/GOST/GB Δt ≥ 300ms)" : "ÇAKIŞMA RİSKİ (Δt < 300ms)",
           accentColor: isSelective ? const Color(0xFF00E676) : const Color(0xFFFF3D00),
         ),
-        const SizedBox(height: 14),
-
-        // 📈 LOG-LOG TCC KOORDİNASYON GRAFİK ALANI
+        const SizedBox(height: 12),
         _buildSectionCard(
-          title: "LOG-LOG RÖLE KOORDİNASYON EĞRİSİ (TCC CURVE)",
+          title: t('tcc_chart_title'),
           child: Column(
             children: [
               Container(
@@ -686,19 +767,17 @@ class _MainCockpitState extends State<MainCockpit> {
                 children: [
                   Icon(Icons.circle, color: Color(0xFFFF3D00), size: 10),
                   SizedBox(width: 4),
-                  Text("Giriş (Upstream)", style: TextStyle(fontSize: 10, color: Colors.white70)),
+                  Text("Giriş / Upstream", style: TextStyle(fontSize: 10, color: Colors.white70)),
                   SizedBox(width: 14),
                   Icon(Icons.circle, color: Color(0xFF00E676), size: 10),
                   SizedBox(width: 4),
-                  Text("Fider (Downstream)", style: TextStyle(fontSize: 10, color: Colors.white70)),
+                  Text("Fider / Downstream", style: TextStyle(fontSize: 10, color: Colors.white70)),
                 ],
               ),
             ],
           ),
         ),
         const SizedBox(height: 12),
-
-        // RÖLE PARAMETRELERİ
         _buildSectionCard(
           title: "Upstream (Giriş) Rölesi",
           child: Column(
@@ -723,7 +802,7 @@ class _MainCockpitState extends State<MainCockpit> {
   }
 
   // ==========================================
-  // SEKME 2: KESİCİ SAT TEŞHİS, CIBANO PARSER & RESMİ RAPOR
+  // SEKME 2: KESİCİ SAT TEŞHİS & EKİPMAN SEÇİMİ
   // ==========================================
   Widget _buildBreakerDiagnosticsTab() {
     final limit = _activeBreaker.defaultLimitMicroOhm;
@@ -741,48 +820,58 @@ class _MainCockpitState extends State<MainCockpit> {
     return ListView(
       padding: const EdgeInsets.all(16),
       children: [
-        // MARKA SEÇİCİLER
         _buildSectionCard(
-          title: "Ekipman Seçimi (Hücre / Kesici / Röle)",
+          title: "Ekipman ve Standart Seçimi (Vendor & Norms)",
           child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              Text(t('gear_select'), style: const TextStyle(fontSize: 10, color: Colors.grey)),
               DropdownButtonFormField<int>(
                 value: _selectedSwitchgearIdx,
                 isExpanded: true,
                 dropdownColor: const Color(0xFF151921),
                 decoration: _inputDeco(),
-                items: List.generate(kSwitchgears.length, (i) => DropdownMenuItem(value: i, child: Text(kSwitchgears[i], style: const TextStyle(fontSize: 11)))),
+                items: List.generate(kSwitchgears.length, (i) => DropdownMenuItem(value: i, child: Text("${kSwitchgears[i].name} (${kSwitchgears[i].type})", style: const TextStyle(fontSize: 11)))),
                 onChanged: (v) => setState(() => _selectedSwitchgearIdx = v!),
               ),
               const SizedBox(height: 6),
+              Text(t('breaker_select'), style: const TextStyle(fontSize: 10, color: Colors.grey)),
               DropdownButtonFormField<int>(
                 value: _selectedBreakerIdx,
                 isExpanded: true,
                 dropdownColor: const Color(0xFF151921),
                 decoration: _inputDeco(),
-                items: List.generate(kBreakers.length, (i) => DropdownMenuItem(value: i, child: Text("${kBreakers[i].name} (≤${kBreakers[i].defaultLimitMicroOhm.toInt()}µΩ)", style: const TextStyle(fontSize: 11)))),
+                items: List.generate(kBreakers.length, (i) => DropdownMenuItem(value: i, child: Text("${kBreakers[i].name} [${kBreakers[i].medium}] (≤${kBreakers[i].defaultLimitMicroOhm.toInt()}µΩ)", style: const TextStyle(fontSize: 11)))),
                 onChanged: (v) => setState(() => _selectedBreakerIdx = v!),
+              ),
+              const SizedBox(height: 6),
+              Text(t('relay_select'), style: const TextStyle(fontSize: 10, color: Colors.grey)),
+              DropdownButtonFormField<int>(
+                value: _selectedRelayIdx,
+                isExpanded: true,
+                dropdownColor: const Color(0xFF151921),
+                decoration: _inputDeco(),
+                items: List.generate(kRelays.length, (i) => DropdownMenuItem(value: i, child: Text("${kRelays[i].name} (${kRelays[i].standardCode})", style: const TextStyle(fontSize: 11)))),
+                onChanged: (v) => setState(() => _selectedRelayIdx = v!),
               ),
             ],
           ),
         ),
         const SizedBox(height: 12),
         _buildHudCard(
-          "SAT TEŞHİS: ${_activeBreaker.name}",
-          isOverallPass ? "TESTTEN GEÇTİ (PASS)" : "KUSURLU (FAIL)",
-          "Limit: ≤ ${limit.toInt()} µΩ | Ölçülen: ${maxRes.toStringAsFixed(1)} µΩ | Asimetri: %${resAsym.toStringAsFixed(1)}",
+          "${t('sat_hud_title')}: ${_activeBreaker.name}",
+          isOverallPass ? t('sat_pass') : t('sat_fail'),
+          "Limit: ≤ ${limit.toInt()} µΩ | Max: ${maxRes.toStringAsFixed(1)} µΩ | Asym: %${resAsym.toStringAsFixed(1)}",
           accentColor: isOverallPass ? const Color(0xFF00E676) : const Color(0xFFFF3D00),
         ),
-        const SizedBox(height: 12),
-
-        // CIBANO / OMICRON HIZLI YAPIŞTIR BUTONU
+        const SizedBox(height: 10),
         Row(
           children: [
             Expanded(
               child: ElevatedButton.icon(
                 style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF151921), foregroundColor: const Color(0xFFFFB300), side: const BorderSide(color: Color(0xFFFFB300))),
-                icon: const Icon(Icons.paste, size: 16),
-                label: const Text("CIBANO/Test Verisi Yapıştır", style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
+                icon: const Icon(Icons.paste, size: 14),
+                label: Text(t('paste_cibano'), style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold)),
                 onPressed: _showCibanoPasteDialog,
               ),
             ),
@@ -790,17 +879,16 @@ class _MainCockpitState extends State<MainCockpit> {
             Expanded(
               child: ElevatedButton.icon(
                 style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFFFB300), foregroundColor: Colors.black),
-                icon: const Icon(Icons.description, size: 16),
-                label: const Text("Resmi Rapor Üret", style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
+                icon: const Icon(Icons.description, size: 14),
+                label: Text(t('official_report'), style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold)),
                 onPressed: _showOfficialSatPdfReport,
               ),
             ),
           ],
         ),
-        const SizedBox(height: 14),
-
+        const SizedBox(height: 12),
         _buildSectionCard(
-          title: "R-S-T Kontak Dirençleri (µΩ)",
+          title: "R-S-T Kontak Geçiş Dirençleri (µΩ)",
           child: Column(
             children: [
               _buildEditableSlider("R Kutbu Direnci (µΩ)", _resR, 10, 100, (v) => setState(() => _resR = v)),
@@ -809,7 +897,7 @@ class _MainCockpitState extends State<MainCockpit> {
             ],
           ),
         ),
-        const SizedBox(height: 10),
+        const SizedBox(height: 8),
         _buildSectionCard(
           title: "Açma Süresi & Kutuplar Arası Senkronizm (ms)",
           child: Column(
@@ -817,7 +905,7 @@ class _MainCockpitState extends State<MainCockpit> {
               _buildEditableSlider("tR Açma Zamanı (ms)", _timeR, 20, 90, (v) => setState(() => _timeR = v)),
               _buildEditableSlider("tS Açma Zamanı (ms)", _timeS, 20, 90, (v) => setState(() => _timeS = v)),
               _buildEditableSlider("tT Açma Zamanı (ms)", _timeT, 20, 90, (v) => setState(() => _timeT = v)),
-              Text("Senkronizm Farkı (Δt): ${deltaSyncMs.toStringAsFixed(1)} ms (IEC Sınırı ≤ 3ms)", style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: isSyncOk ? Colors.greenAccent : Colors.redAccent)),
+              Text("Senkronizm Farkı (Δt): ${deltaSyncMs.toStringAsFixed(1)} ms (IEC/GOST/GB Sınırı ≤ 3ms)", style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: isSyncOk ? Colors.greenAccent : Colors.redAccent)),
             ],
           ),
         ),
@@ -831,12 +919,11 @@ class _MainCockpitState extends State<MainCockpit> {
   Widget _buildCableArcTab() {
     final ikAmps = _ikKa * 1000.0;
     final sMin = (ikAmps * sqrt(0.15)) / (_isCopper ? 143.0 : 94.0);
-    final isSafe = _cableSection >= sMin;
 
     return ListView(
       padding: const EdgeInsets.all(16),
       children: [
-        _buildHudCard("ADYABATİK KABLO TAHKİKİ", "${_cableSection.toInt()} mm²", "Kısa Devrede Erimeyen Asgari Smin: ${sMin.toStringAsFixed(1)} mm²"),
+        _buildHudCard(t('cable_hud_title'), "${_cableSection.toInt()} mm²", "Kısa Devrede Erimeyen Asgari Smin: ${sMin.toStringAsFixed(1)} mm²"),
         const SizedBox(height: 14),
         _buildEditableSlider("Seçilen Kesit (mm²)", _cableSection, 16, 400, (v) => setState(() => _cableSection = v)),
         _buildEditableSlider("Hat Boyu (m)", _cableLength, 10, 1000, (v) => setState(() => _cableLength = v)),
@@ -847,7 +934,7 @@ class _MainCockpitState extends State<MainCockpit> {
   }
 
   // ==========================================
-  // SEKME 4: ŞALT DİZİLİMİ & KESİNTİSİZ SLD
+  // SEKME 4: ŞALT DİZİLİMİ & SLD
   // ==========================================
   Widget _buildSwitchgearSldTab() {
     final canvasWidth = max(MediaQuery.of(context).size.width * 1.6, _cells.length * 115.0 + 100.0);
@@ -872,7 +959,7 @@ class _MainCockpitState extends State<MainCockpit> {
                   height: canvasHeight,
                   child: CustomPaint(
                     size: Size(canvasWidth, canvasHeight),
-                    painter: DynamicSwitchgearPainter(cells: _cells, voltageKv: _voltageKv, ikKa: _ikKa, activeSwitchgear: _activeSwitchgear),
+                    painter: DynamicSwitchgearPainter(cells: _cells, voltageKv: _voltageKv, ikKa: _ikKa, activeSwitchgear: _activeSwitchgear.name),
                   ),
                 ),
               ),
@@ -893,7 +980,7 @@ class _MainCockpitState extends State<MainCockpit> {
                 child: ListTile(
                   dense: true,
                   title: Text(c.name, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
-                  subtitle: Text("CT: ${c.ctRatio} | ${_activeBreaker.vendor}", style: const TextStyle(fontSize: 10, color: Colors.grey)),
+                  subtitle: Text("CT: ${c.ctRatio} | ${_activeBreaker.name}", style: const TextStyle(fontSize: 10, color: Colors.grey)),
                   trailing: IconButton(
                     icon: Icon(c.cbClosed ? Icons.power : Icons.power_off, color: c.cbClosed ? const Color(0xFFFF3D00) : const Color(0xFF00E676)),
                     onPressed: () => setState(() => c.cbClosed = !c.cbClosed),
@@ -907,7 +994,7 @@ class _MainCockpitState extends State<MainCockpit> {
     );
   }
 
-  // --- YARDIMCI BİLEŞENLER ---
+  // --- YARDIMCI WIDGETLAR ---
   Widget _buildEditableSlider(String title, double val, double min, double max, ValueChanged<double> onChanged) {
     return Container(
       margin: const EdgeInsets.only(bottom: 8),
@@ -937,7 +1024,7 @@ class _MainCockpitState extends State<MainCockpit> {
         children: [
           Text(title, style: const TextStyle(color: Colors.grey, fontSize: 11, fontWeight: FontWeight.bold, letterSpacing: 1.1)),
           const SizedBox(height: 6),
-          Text(value, style: TextStyle(fontSize: 26, fontWeight: FontWeight.w900, color: accentColor)),
+          Text(value, style: TextStyle(fontSize: 24, fontWeight: FontWeight.w900, color: accentColor)),
           const SizedBox(height: 4),
           Text(sub, textAlign: TextAlign.center, style: const TextStyle(color: Colors.grey, fontSize: 12)),
         ],
@@ -965,7 +1052,7 @@ class _MainCockpitState extends State<MainCockpit> {
 }
 
 // ==========================================
-// 📈 LOG-LOG TCC RÖLE KOORDİNASYON ÇİZİCİSİ
+// 📈 DÜZELTİLMİŞ LOG-LOG TCC KOORDİNASYON ÇİZİCİSİ
 // ==========================================
 class LogLogTccPainter extends CustomPainter {
   final double upIs;
@@ -994,25 +1081,25 @@ class LogLogTccPainter extends CustomPainter {
     final gridPaint = Paint()..color = const Color(0xFF21262D)..strokeWidth = 1.0;
     final axisPaint = Paint()..color = const Color(0xFF8B949E)..strokeWidth = 1.5;
 
-    // Log Aralıkları: Akım 10A -> 10,000A (3 Dekat), Zaman: 0.01s -> 100s (4 Dekat)
     double logX(double a) => (log(max(a, 10.0)) / ln10 - 1.0) / 3.0 * (w - 40) + 30;
     double logY(double t) => h - 20 - ((log(max(t, 0.01)) / ln10 + 2.0) / 4.0 * (h - 30));
 
-    // Izgara Çizgileri
+    // Dikey Izgara Çizgileri
     for (int p = 1; p <= 4; p++) {
       final x = logX(pow(10, p).toDouble());
       canvas.drawLine(Offset(x, 10), Offset(x, h - 20), gridPaint);
     }
+    // Yatay Izgara Çizgileri (HATA DÜZELTİLDİ: 3 PARAMETRE)
     for (int p = -2; p <= 2; p++) {
       final y = logY(pow(10, p).toDouble());
-      canvas.drawLine(Offset(30, y), Offset(w - 10), Offset(w - 10, y), gridPaint);
+      canvas.drawLine(Offset(30, y), Offset(w - 10, y), gridPaint);
     }
 
-    // Eksen Çizgileri
+    // Eksenler
     canvas.drawLine(Offset(30, 10), Offset(30, h - 20), axisPaint);
     canvas.drawLine(Offset(30, h - 20), Offset(w - 10, h - 20), axisPaint);
 
-    // Upstream Eğrisi (Kırmızı/Amber)
+    // Upstream (Giriş) Eğrisi
     final upPaint = Paint()..color = const Color(0xFFFF3D00)..strokeWidth = 2.2..style = PaintingStyle.stroke;
     final upPath = Path();
     bool upStarted = false;
@@ -1025,7 +1112,7 @@ class LogLogTccPainter extends CustomPainter {
     }
     canvas.drawPath(upPath, upPaint);
 
-    // Downstream Eğrisi (Yeşil)
+    // Downstream (Fider) Eğrisi
     final downPaint = Paint()..color = const Color(0xFF00E676)..strokeWidth = 2.2..style = PaintingStyle.stroke;
     final downPath = Path();
     bool downStarted = false;
@@ -1038,7 +1125,6 @@ class LogLogTccPainter extends CustomPainter {
     }
     canvas.drawPath(downPath, downPaint);
 
-    // Arıza Akımı Çizgisi (Dashed White)
     if (faultA >= 10 && faultA <= 10000) {
       final xFault = logX(faultA);
       final faultPaint = Paint()..color = Colors.white..strokeWidth = 1.2;
