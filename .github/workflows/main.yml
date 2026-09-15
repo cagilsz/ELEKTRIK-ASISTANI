@@ -11,28 +11,29 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      # Java sürümünü daha stabil olan Temurin ile güncelliyoruz
-      - uses: actions/setup-java@v4
+      - uses: actions/setup-java@v3
         with:
-          distribution: 'temurin'
+          distribution: 'zulu'
           java-version: '17'
 
       - uses: subosito/flutter-action@v2
         with:
           channel: 'stable'
 
-      - name: Projeyi Hazırla ve APK Derle
+      - name: Projeyi Gerçek Bir Flutter Projesine Çevir
         run: |
-          flutter create power_app
-          rm -rf power_app/lib
-          cp -r lib power_app/
-          cd power_app
+          # Bulunduğumuz klasörü resmi bir Flutter projesi yapıyoruz
+          flutter create --org com.schneider.powerfield --project-name powerfield .
+          
+          # Eksik paketleri indiriyoruz
           flutter pub add shared_preferences
-          # Hatayı açıkça görmek için verbose (-v) parametresini ekledik
-          flutter build apk --release -v
+          flutter pub get
+
+      - name: APK Derle
+        run: flutter build apk --release
 
       - name: APK Dosyasını Yükle
         uses: actions/upload-artifact@v4
         with:
           name: ElektrikAsistani-APK
-          path: power_app/build/app/outputs/flutter-apk/app-release.apk
+          path: build/app/outputs/flutter-apk/app-release.apk
