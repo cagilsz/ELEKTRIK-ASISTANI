@@ -74,11 +74,6 @@ enum CellType {
 
 /// Koruma hesaplarının temel standardı.
 /// Dil veya ülke seçimi bunu otomatik olarak belirlemez.
-enum ProtectionStandard {
-  iec60255,
-  ieee,
-}
-
 /// ===============================================================
 /// ENGINEERING VERDICT
 /// ===============================================================

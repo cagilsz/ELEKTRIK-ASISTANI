@@ -1,7 +1,5 @@
-// Konum: lib/main.dart
-
 import 'package:flutter/material.dart';
-import 'screens/main_cockpit.dart'; // Arayüz dosyamızı çağırıyoruz
+import 'screens/main_cockpit.dart';
 
 void main() {
   runApp(const PowerFieldProApp());
@@ -13,7 +11,7 @@ class PowerFieldProApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'PowerField Pro v6.8',
+      title: 'PowerField Pro',
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
         brightness: Brightness.dark,
@@ -25,8 +23,12 @@ class PowerFieldProApp extends StatelessWidget {
           error: Color(0xFFFF3D00),
           surface: Color(0xFF111622),
         ),
+        inputDecorationTheme: const InputDecorationTheme(
+          isDense: true,
+          border: OutlineInputBorder(),
+        ),
       ),
-      home: const MainCockpit(), // Uygulama Kokpit ekranından başlıyor
+      home: const MainCockpit(),
     );
   }
 }

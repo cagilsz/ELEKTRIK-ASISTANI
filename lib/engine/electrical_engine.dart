@@ -24,7 +24,7 @@ import 'dart:math' as math;
 // ============================================================
 
 enum ProtectionStandard {
-  iec,
+  iec60255,
   ieee,
 }
 
