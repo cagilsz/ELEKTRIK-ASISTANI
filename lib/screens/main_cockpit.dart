@@ -668,7 +668,7 @@ class _MainCockpitState extends State<MainCockpit>
               _resultRow(t('thevenin_impedance'), '${(data['zOhm'] as double).toStringAsFixed(4)} Ω'),
               _resultRow(t('breaker_capacity'), '${breaker.ratedBreakingIcuKa.toStringAsFixed(1)} kA'),
               _statusBanner(
-                result.status,
+                _complianceStatus(result.status),
                 result.explanation,
               ),
               if (appMode == AppMode.professional)
@@ -680,16 +680,6 @@ class _MainCockpitState extends State<MainCockpit>
           ),
         ),
       ],
-    );
-  }
-
-  ProtectionResult _protectionData() {
-    final faultA = p.up50PickupA * 2.5;
-    return ElectricalEngine.calculateTripTime(
-      faultCurrentA: faultA,
-      pickupCurrentA: p.up50PickupA,
-      timeMultiplier: p.upTms,
-      curve: p.upCurve,
     );
   }
 
@@ -825,6 +815,19 @@ class _MainCockpitState extends State<MainCockpit>
           ),
         ),
       ],
+    );
+  }
+
+  ProtectionResult _protectionData() {
+    final fault = _shortCircuitData()['ikKa'] as double;
+    final faultCurrentA = fault * 1000.0;
+    final pickupCurrentA = math.max(1.0, p.upSettingSecA * p.ctSec);
+
+    return ProtectionEngine.calcTripTime(
+      faultCurrentA: faultCurrentA,
+      pickupCurrentA: pickupCurrentA,
+      timeMultiplier: p.upTms,
+      curve: p.upCurve,
     );
   }
 
@@ -1243,20 +1246,12 @@ class _MainCockpitState extends State<MainCockpit>
     );
   }
 
-  Widget _statusBanner(Object status, String message) {
-    final statusName = status.toString().split('.').last;
-    final text = switch (statusName) {
-      'pass' => t('pass'),
-      'fail' => t('fail'),
-      'warning' => t('warning'),
-      _ => t('not_verified'),
-    };
-
-    final icon = switch (statusName) {
-      'pass' => Icons.check_circle,
-      'fail' => Icons.cancel,
-      'warning' => Icons.warning_amber,
-      _ => Icons.help_outline,
+  Widget _statusBanner(ComplianceStatus status, String message) {
+    final text = switch (status) {
+      ComplianceStatus.pass => t('pass'),
+      ComplianceStatus.fail => t('fail'),
+      ComplianceStatus.warning => t('warning'),
+      ComplianceStatus.notVerified => t('not_verified'),
     };
 
     return Container(
@@ -1270,7 +1265,12 @@ class _MainCockpitState extends State<MainCockpit>
       child: Row(
         children: [
           Icon(
-            icon,
+            switch (status) {
+              ComplianceStatus.pass => Icons.check_circle,
+              ComplianceStatus.fail => Icons.cancel,
+              ComplianceStatus.warning => Icons.warning_amber,
+              ComplianceStatus.notVerified => Icons.help_outline,
+            },
             size: 19,
           ),
           const SizedBox(width: 8),
@@ -1278,6 +1278,19 @@ class _MainCockpitState extends State<MainCockpit>
         ],
       ),
     );
+  }
+
+  ComplianceStatus _complianceStatus(EngineeringStatus status) {
+    switch (status) {
+      case EngineeringStatus.pass:
+        return ComplianceStatus.pass;
+      case EngineeringStatus.warning:
+        return ComplianceStatus.warning;
+      case EngineeringStatus.fail:
+        return ComplianceStatus.fail;
+      case EngineeringStatus.notVerified:
+        return ComplianceStatus.notVerified;
+    }
   }
 
   bool _status(bool ok) => ok;

@@ -7,7 +7,7 @@ import '../engine/electrical_engine.dart';
 /// POWERFIELD PRO - APPLICATION ENUMS
 /// ===============================================================
 
-num AppMode {
+enum AppMode {
   basic,
   professional,
 }
