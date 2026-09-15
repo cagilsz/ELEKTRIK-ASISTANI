@@ -23,8 +23,10 @@ jobs:
       - name: Projeyi Hazırla ve APK Derle
         run: |
           flutter create power_app
-          cp lib/main.dart power_app/lib/main.dart
+          rm -rf power_app/lib
+          cp -r lib power_app/
           cd power_app
+          flutter pub add shared_preferences
           flutter build apk --release
 
       - name: APK Dosyasını Yükle
