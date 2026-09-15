@@ -683,6 +683,16 @@ class _MainCockpitState extends State<MainCockpit>
     );
   }
 
+  ProtectionResult _protectionData() {
+    final faultA = p.up50PickupA * 2.5;
+    return ElectricalEngine.calculateTripTime(
+      faultCurrentA: faultA,
+      pickupCurrentA: p.up50PickupA,
+      timeMultiplier: p.upTms,
+      curve: p.upCurve,
+    );
+  }
+
   Map<String, dynamic> _shortCircuitData() {
     final zGrid = ElectricalEngine.calculateGridImpedance(
       voltageKv: p.voltageKv,
@@ -1233,12 +1243,20 @@ class _MainCockpitState extends State<MainCockpit>
     );
   }
 
-  Widget _statusBanner(ComplianceStatus status, String message) {
-    final text = switch (status) {
-      ComplianceStatus.pass => t('pass'),
-      ComplianceStatus.fail => t('fail'),
-      ComplianceStatus.warning => t('warning'),
-      ComplianceStatus.notVerified => t('not_verified'),
+  Widget _statusBanner(Object status, String message) {
+    final statusName = status.toString().split('.').last;
+    final text = switch (statusName) {
+      'pass' => t('pass'),
+      'fail' => t('fail'),
+      'warning' => t('warning'),
+      _ => t('not_verified'),
+    };
+
+    final icon = switch (statusName) {
+      'pass' => Icons.check_circle,
+      'fail' => Icons.cancel,
+      'warning' => Icons.warning_amber,
+      _ => Icons.help_outline,
     };
 
     return Container(
@@ -1252,12 +1270,7 @@ class _MainCockpitState extends State<MainCockpit>
       child: Row(
         children: [
           Icon(
-            switch (status) {
-              ComplianceStatus.pass => Icons.check_circle,
-              ComplianceStatus.fail => Icons.cancel,
-              ComplianceStatus.warning => Icons.warning_amber,
-              ComplianceStatus.notVerified => Icons.help_outline,
-            },
+            icon,
             size: 19,
           ),
           const SizedBox(width: 8),

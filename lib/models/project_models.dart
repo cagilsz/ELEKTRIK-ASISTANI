@@ -7,18 +7,7 @@ import '../engine/electrical_engine.dart';
 /// POWERFIELD PRO - APPLICATION ENUMS
 /// ===============================================================
 
-enum AppLanguage {
-  tr,
-  en,
-  fr,
-  de,
-  es,
-  zh,
-  ru,
-  ja,
-}
-
-enum AppMode {
+num AppMode {
   basic,
   professional,
 }
