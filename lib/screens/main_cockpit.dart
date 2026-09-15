@@ -7,7 +7,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 // Diğer klasörlerdeki beyin ve veritabanı dosyalarımızı çağırıyoruz:
 import '../engine/electrical_engine.dart';
-import '../models/powerfield_models.dart';
+import '../models/project_models.dart';
 
 class MainCockpit extends StatefulWidget {
   const MainCockpit({super.key});
