@@ -1,11 +1,11 @@
 // Konum: lib/screens/main_cockpit.dart
 
 import 'dart:convert';
-import 'dart:math';
+import 'dart:math'; 
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-// Diğer klasörlerdeki beyin ve veritabanı dosyalarımızı çağırıyoruz:
+// İŞTE DÜZELTTİĞİMİZ SATIR BURASI:
 import '../engine/electrical_engine.dart';
 import '../models/project_models.dart';
 
@@ -59,7 +59,6 @@ class _MainCockpitState extends State<MainCockpit> with WidgetsBindingObserver {
     );
   }
 
-  // SAHA MÜHENDİSİ DİLİYLE YAZILMIŞ "INFO" BUTONU FONKSİYONU
   void _showInfoDialog(String title, String content) {
     showDialog(
       context: context,
